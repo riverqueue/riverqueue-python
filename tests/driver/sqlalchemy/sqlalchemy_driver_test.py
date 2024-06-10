@@ -5,7 +5,7 @@ import pytest
 
 from riverqueue.client import Client
 from riverqueue.models import InsertOpts, UniqueOpts
-from riverqueue.drivers.sqlcdb.sqlc_driver import SqlcDriver
+from riverqueue.drivers.sqlalchemy.sqlalchemy_driver import SqlAlchemyDriver
 from client_test import SimpleArgs
 from sqlalchemy import text
 
@@ -14,7 +14,7 @@ from sqlalchemy import text
 def driver(engine):
     with engine.begin() as conn:
         conn.execute(text("SET search_path TO public"))
-        yield SqlcDriver(conn)
+        yield SqlAlchemyDriver(conn)
 
 
 @pytest.fixture
