@@ -7,7 +7,7 @@ from ...models import GetParams, Job
 from . import river_job, pg_misc
 
 
-class SqlcDriver(Driver):
+class SqlAlchemyDriver(Driver):
     def __init__(self, session):
         self.session = session
         self.pg_misc_querier = pg_misc.Querier(session)
