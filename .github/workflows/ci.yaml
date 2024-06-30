@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install the latest version of rye
         uses: eifinger/setup-rye@v3
@@ -32,4 +33,4 @@ jobs:
         run: rye build
 
       - name: Test
-        run: rye test
+        run: RIVER_USE_DOCKER=true rye test

@@ -22,8 +22,30 @@ $ rye sync
 
 ## Run tests
 
+Create a test database and migrate with River's CLI:
+
+```shell
+$ go install github.com/riverqueue/river/cmd/river
+$ createdb river_test
+$ river migrate-up --database-url "postgres://localhost/river_test"
+```
+
+Run all tests:
+
 ```shell
 $ rye test
+```
+
+_Or_, using a Docker test Postgres container instead of a test database:
+
+```shell
+RIVER_USE_DOCKER=true rye test
+```
+
+Run a specific test (or without `-k` option for all tests in a single file):
+
+```shell
+rye test -- tests/driver/sqlalchemy/sqlalchemy_driver_test.py -k test_insert_with_unique_opts_by_queue
 ```
 
 ## Run lint

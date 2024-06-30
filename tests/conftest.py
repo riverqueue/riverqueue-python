@@ -1,13 +1,30 @@
 import os
+from typing import Iterator
 
 import pytest
 from testcontainers.postgres import PostgresContainer
 import sqlalchemy
-from sqlalchemy import text
+from sqlalchemy import Engine, text
 
 
 @pytest.fixture(scope="session")
-def engine():
+def engine() -> Iterator[Engine]:
+    if os.getenv("RIVER_USE_DOCKER"):
+        yield from engine_with_docker()
+    else:
+        yield from engine_with_database_url()
+
+
+def engine_with_database_url() -> Iterator[Engine]:
+    database_url = os.getenv("TEST_DATABASE_URL", "postgres://localhost/river_test")
+
+    # sqlalchemy removed support for postgres:// for reasons beyond comprehension
+    database_url = database_url.replace("postgres://", "postgresql://")
+
+    yield sqlalchemy.create_engine(database_url)
+
+
+def engine_with_docker() -> Iterator[Engine]:
     with PostgresContainer("postgres:16") as postgres:
         engine = sqlalchemy.create_engine(postgres.get_connection_url())
         with engine.connect() as conn:

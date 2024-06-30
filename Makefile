@@ -12,4 +12,4 @@ test:
 
 .PHONY: typecheck
 typecheck:
-	rye run mypy -p src.riverqueue
+	rye run mypy -p riverqueue -p tests

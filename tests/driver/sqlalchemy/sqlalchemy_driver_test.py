@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -6,19 +7,21 @@ import pytest
 from riverqueue.client import Client
 from riverqueue.models import InsertOpts, UniqueOpts
 from riverqueue.drivers.sqlalchemy.sqlalchemy_driver import SqlAlchemyDriver
-from client_test import SimpleArgs
-from sqlalchemy import text
+from sqlalchemy import Engine, text
+
+from tests.simple_args import SimpleArgs
 
 
 @pytest.fixture
-def driver(engine):
+def driver(engine: Engine) -> Iterator[SqlAlchemyDriver]:
     with engine.begin() as conn:
         conn.execute(text("SET search_path TO public"))
         yield SqlAlchemyDriver(conn)
+        conn.rollback()
 
 
 @pytest.fixture
-def client(driver):
+def client(driver: SqlAlchemyDriver) -> Client:
     return Client(driver)
 
 
