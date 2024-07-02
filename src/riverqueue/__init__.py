@@ -55,26 +55,26 @@ class Client:
     ) -> InsertResult:
         if not insert_opts:
             insert_opts = InsertOpts()
-        insert_params, unique_opts = self.make_insert_params(args, insert_opts)
+        insert_params, unique_opts = self.__make_insert_params(args, insert_opts)
 
         def insert():
             print(self.driver)
             return InsertResult(self.driver.job_insert(insert_params))
 
-        return self.check_unique_job(insert_params, unique_opts, insert)
+        return self.__check_unique_job(insert_params, unique_opts, insert)
 
     def insert_many(self, args: List[Args]) -> List[InsertResult]:
         all_params = [
-            self.make_insert_params(
+            self.__make_insert_params(
                 arg.args, arg.insert_opts or InsertOpts(), is_insert_many=True
             )[0]
             if isinstance(arg, InsertManyParams)
-            else self.make_insert_params(arg, InsertOpts(), is_insert_many=True)[0]
+            else self.__make_insert_params(arg, InsertOpts(), is_insert_many=True)[0]
             for arg in args
         ]
         return [InsertResult(x) for x in self.driver.job_insert_many(all_params)]
 
-    def check_unique_job(
+    def __check_unique_job(
         self,
         insert_params: JobInsertParams,
         unique_opts: Optional[UniqueOpts],
@@ -95,7 +95,7 @@ class Client:
             lock_str += f"&args={insert_params.args}"
 
         if unique_opts.by_period:
-            lower_period_bound = self.truncate_time(
+            lower_period_bound = self.__truncate_time(
                 self.time_now_utc(), unique_opts.by_period
             )
 
@@ -132,7 +132,7 @@ class Client:
                 prefix = self.advisory_lock_prefix
                 lock_key = (prefix << 32) | fnv1_hash(lock_str.encode("utf-8"), 32)
 
-            lock_key = self.uint64_to_int64(lock_key)
+            lock_key = self.__uint64_to_int64(lock_key)
             self.driver.advisory_lock(lock_key)
 
             existing_job = self.driver.job_get_by_kind_and_unique_properties(get_params)
@@ -142,7 +142,7 @@ class Client:
             return insert_func()
 
     @staticmethod
-    def make_insert_params(
+    def __make_insert_params(
         args: Args, insert_opts: InsertOpts, is_insert_many: bool = False
     ) -> Tuple[JobInsertParams, Optional[UniqueOpts]]:
         if not hasattr(args, "kind"):
@@ -178,12 +178,12 @@ class Client:
         return insert_params, unique_opts
 
     @staticmethod
-    def truncate_time(time, interval_seconds) -> datetime:
+    def __truncate_time(time, interval_seconds) -> datetime:
         return datetime.fromtimestamp(
             (time.timestamp() // interval_seconds) * interval_seconds, tz=timezone.utc
         )
 
     @staticmethod
-    def uint64_to_int64(uint64):
+    def __uint64_to_int64(uint64):
         # Packs a uint64 then unpacks to int64 to fit within Postgres bigint
         return (uint64 + (1 << 63)) % (1 << 64) - (1 << 63)
