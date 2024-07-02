@@ -1,99 +1,42 @@
 """
-Copyright (c) 2015 Lorenz Schori
+FNV is the Fowler–Noll–Vo hash function, a simple hash that's very easy to
+implement, and hash the perfect characteristics for use with the 64 bits of
+available space in a PG advisory lock.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+I'm implemented it myself so that the River package can stay dependency free
+(and because it's quite easy to do).
 """
 
-FNV_32_PRIME = 0x01000193
-FNV_64_PRIME = 0x100000001B3
-
-FNV0_32_INIT = 0
-FNV0_64_INIT = 0
-FNV1_32_INIT = 0x811C9DC5
-FNV1_32A_INIT = FNV1_32_INIT
-FNV1_64_INIT = 0xCBF29CE484222325
-FNV1_64A_INIT = FNV1_64_INIT
+from typing import Dict, Literal
 
 
-def fnv(data, hval_init, fnv_prime, fnv_size):
+def fnv1_hash(data: bytes, size: Literal[32] | Literal[64]) -> int:
     """
-    Core FNV hash algorithm used in FNV0 and FNV1.
+    Hashes data as a 32-bit or 64-bit FNV hash and returns the result. Data
+    should be bytes rather than a string, so encode a string with something like
+    `input_str.encode("utf-8")` or `b"string as bytes"`.
     """
+
     assert isinstance(data, bytes)
 
-    hval = hval_init
+    hash = __OFFSET_BASIS[size]
+    mask = 2**size - 1  # creates a mask of 1s of `size` bits long like 0xffffffff
+    prime = __PRIME[size]
+
     for byte in data:
-        hval = (hval * fnv_prime) % fnv_size
-        hval = hval ^ byte
-    return hval
+        hash *= prime
+        hash &= mask  # take lower N bits of multiplication product
+        hash ^= byte
+
+    return hash
 
 
-def fnva(data, hval_init, fnv_prime, fnv_size):
-    """
-    Alternative FNV hash algorithm used in FNV-1a.
-    """
-    assert isinstance(data, bytes)
+__OFFSET_BASIS: Dict[Literal[32] | Literal[64], int] = {
+    32: 0x811C9DC5,
+    64: 0xCBF29CE484222325,
+}
 
-    hval = hval_init
-    for byte in data:
-        hval = hval ^ byte
-        hval = (hval * fnv_prime) % fnv_size
-    return hval
-
-
-def fnv0_32(data, hval_init=FNV0_32_INIT):
-    """
-    Returns the 32 bit FNV-0 hash value for the given data.
-    """
-    return fnv(data, hval_init, FNV_32_PRIME, 2**32)
-
-
-def fnv1_32(data, hval_init=FNV1_32_INIT):
-    """
-    Returns the 32 bit FNV-1 hash value for the given data.
-    """
-    return fnv(data, hval_init, FNV_32_PRIME, 2**32)
-
-
-def fnv1a_32(data, hval_init=FNV1_32_INIT):
-    """
-    Returns the 32 bit FNV-1a hash value for the given data.
-    """
-    return fnva(data, hval_init, FNV_32_PRIME, 2**32)
-
-
-def fnv0_64(data, hval_init=FNV0_64_INIT):
-    """
-    Returns the 64 bit FNV-0 hash value for the given data.
-    """
-    return fnv(data, hval_init, FNV_64_PRIME, 2**64)
-
-
-def fnv1_64(data, hval_init=FNV1_64_INIT):
-    """
-    Returns the 64 bit FNV-1 hash value for the given data.
-    """
-    return fnv(data, hval_init, FNV_64_PRIME, 2**64)
-
-
-def fnv1a_64(data, hval_init=FNV1_64_INIT):
-    """
-    Returns the 64 bit FNV-1a hash value for the given data.
-    """
-    return fnva(data, hval_init, FNV_64_PRIME, 2**64)
+__PRIME: Dict[Literal[32] | Literal[64], int] = {
+    32: 0x01000193,
+    64: 0x00000100000001B3,
+}
