@@ -1,5 +1,5 @@
 [project]
-name = "riverqueue-py"
+name = "riverqueue"
 version = "0.1.0"
 description = "Add your description here"
 authors = [

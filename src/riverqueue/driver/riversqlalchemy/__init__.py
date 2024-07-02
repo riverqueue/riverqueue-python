@@ -1,13 +1,12 @@
 from contextlib import contextmanager
 from typing import Optional, List, Generator
 
-from ...client import JobInsertParams
-from ...driver import Driver
-from ...models import GetParams, Job
+from ...driver import DriverProtocol, GetParams, JobInsertParams
+from ...model import Job
 from . import river_job, pg_misc
 
 
-class SqlAlchemyDriver(Driver):
+class Driver(DriverProtocol):
     def __init__(self, session):
         self.session = session
         self.pg_misc_querier = pg_misc.Querier(session)

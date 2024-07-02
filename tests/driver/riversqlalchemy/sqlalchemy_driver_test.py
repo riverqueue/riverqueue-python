@@ -4,24 +4,23 @@ from unittest.mock import patch
 
 import pytest
 
-from riverqueue.client import Client
-from riverqueue.models import InsertOpts, UniqueOpts
-from riverqueue.drivers.sqlalchemy.sqlalchemy_driver import SqlAlchemyDriver
+from riverqueue import Client, InsertOpts, UniqueOpts
+from riverqueue.driver import riversqlalchemy
 from sqlalchemy import Engine, text
 
 from tests.simple_args import SimpleArgs
 
 
 @pytest.fixture
-def driver(engine: Engine) -> Iterator[SqlAlchemyDriver]:
+def driver(engine: Engine) -> Iterator[riversqlalchemy.Driver]:
     with engine.begin() as conn:
         conn.execute(text("SET search_path TO public"))
-        yield SqlAlchemyDriver(conn)
+        yield riversqlalchemy.Driver(conn)
         conn.rollback()
 
 
 @pytest.fixture
-def client(driver: SqlAlchemyDriver) -> Client:
+def client(driver: riversqlalchemy.Driver) -> Client:
     return Client(driver)
 
 
