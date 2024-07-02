@@ -2,7 +2,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, List, Callable
 
 from .driver import Driver
-from .fnv import fnv1a_64, fnv1a_32
+from .fnv import fnv1_hash
 from .models import (
     InsertOpts,
     Args,
@@ -102,10 +102,10 @@ class Client:
 
         with self.driver.transaction():
             if self.advisory_lock_prefix is None:
-                lock_key = fnv1a_64(lock_str.encode("utf-8"))
+                lock_key = fnv1_hash(lock_str.encode("utf-8"), 64)
             else:
                 prefix = self.advisory_lock_prefix
-                lock_key = (prefix << 32) | fnv1a_32(lock_str.encode("utf-8"))
+                lock_key = (prefix << 32) | fnv1_hash(lock_str.encode("utf-8"), 32)
 
             lock_key = self.uint64_to_int64(lock_key)
             self.driver.advisory_lock(lock_key)
