@@ -26,8 +26,8 @@ jobs:
       - name: Lint
         run: rye lint
 
-      - name: Typecheck
-        run: make typecheck
+      - name: Type check
+        run: make type-check
 
       - name: Build
         run: rye build
