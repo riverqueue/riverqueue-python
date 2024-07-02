@@ -3,8 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from riverqueue.client import Client
-from riverqueue.models import InsertOpts, UniqueOpts
+from riverqueue import Client, InsertOpts, UniqueOpts
 
 from tests.simple_args import SimpleArgs
 
