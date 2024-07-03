@@ -6,6 +6,7 @@ import pytest
 
 from riverqueue import Client, InsertOpts, UniqueOpts
 from riverqueue.driver import riversqlalchemy
+from riverqueue.driver.driver_protocol import GetParams
 from sqlalchemy import Engine, text
 
 from tests.simple_args import SimpleArgs
@@ -13,10 +14,10 @@ from tests.simple_args import SimpleArgs
 
 @pytest.fixture
 def driver(engine: Engine) -> Iterator[riversqlalchemy.Driver]:
-    with engine.begin() as conn:
-        conn.execute(text("SET search_path TO public"))
-        yield riversqlalchemy.Driver(conn)
-        conn.rollback()
+    with engine.begin() as tx:
+        tx.execute(text("SET search_path TO public"))
+        yield riversqlalchemy.Driver(tx)
+        tx.rollback()
 
 
 @pytest.fixture
@@ -30,6 +31,29 @@ def test_insert_with_only_args(mock_datetime, client, driver):
     args = SimpleArgs()
     result = client.insert(args)
     assert result.job
+
+
+@patch("datetime.datetime")
+def test_insert_tx(mock_datetime, client, driver, engine):
+    mock_datetime.now.return_value = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    with engine.begin() as tx:
+        args = SimpleArgs()
+        result = client.insert_tx(tx, args)
+        assert result.job
+
+        job = driver.unwrap_executor(tx).job_get_by_kind_and_unique_properties(
+            GetParams(kind=args.kind)
+        )
+        assert job == result.job
+
+        with engine.begin() as tx2:
+            job = driver.unwrap_executor(tx2).job_get_by_kind_and_unique_properties(
+                GetParams(kind=args.kind)
+            )
+            assert job is None
+
+        tx.rollback()
 
 
 @patch("datetime.datetime")
