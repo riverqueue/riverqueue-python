@@ -5,3 +5,7 @@ from .client import (
     InsertOpts as InsertOpts,
     UniqueOpts as UniqueOpts,
 )
+from .model import (
+    InsertResult as InsertResult,
+    Job as Job,
+)
