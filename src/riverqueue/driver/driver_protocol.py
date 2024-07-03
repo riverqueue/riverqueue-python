@@ -1,4 +1,4 @@
-from contextlib import _GeneratorContextManager
+from contextlib import _GeneratorContextManager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterator, List, Optional, Protocol
@@ -55,6 +55,7 @@ class ExecutorProtocol(Protocol):
 
 
 class DriverProtocol(Protocol):
+    @contextmanager
     def executor(self) -> Iterator[ExecutorProtocol]:
         pass
 

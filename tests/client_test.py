@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -17,8 +17,18 @@ def mock_driver() -> DriverProtocol:
 
 @pytest.fixture
 def mock_exec(mock_driver) -> ExecutorProtocol:
+    def mock_context_manager(val) -> Mock:
+        context_manager_mock = MagicMock()
+        context_manager_mock.__enter__.return_value = val
+        context_manager_mock.__exit__.return_value = Mock()
+        return context_manager_mock
+
+    # def mock_context_manager(val) -> Mock:
+    #     return Mock(__enter__=val, __exit__=Mock())
+
     mock_exec = MagicMock(spec=ExecutorProtocol)
-    mock_driver.executor.return_value = iter([mock_exec])
+    mock_driver.executor.return_value = mock_context_manager(mock_exec)
+
     return mock_exec
 
 

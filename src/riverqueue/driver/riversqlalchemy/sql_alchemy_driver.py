@@ -52,6 +52,7 @@ class Driver(DriverProtocol):
     def __init__(self, conn: Connection | Engine):
         self.conn = conn
 
+    @contextmanager
     def executor(self) -> Iterator[ExecutorProtocol]:
         if isinstance(self.conn, Engine):
             with self.conn.begin() as tx:

@@ -53,7 +53,7 @@ class Client:
     def insert(
         self, args: Args, insert_opts: Optional[InsertOpts] = None
     ) -> InsertResult:
-        for exec in self.driver.executor():
+        with self.driver.executor() as exec:
             if not insert_opts:
                 insert_opts = InsertOpts()
             insert_params, unique_opts = self.__make_insert_params(args, insert_opts)
@@ -62,8 +62,6 @@ class Client:
                 return InsertResult(exec.job_insert(insert_params))
 
             return self.__check_unique_job(exec, insert_params, unique_opts, insert)
-
-        return InsertResult()  # for MyPy's benefit
 
     def insert_tx(
         self, tx, args: Args, insert_opts: Optional[InsertOpts] = None
@@ -79,13 +77,11 @@ class Client:
         return self.__check_unique_job(exec, insert_params, unique_opts, insert)
 
     def insert_many(self, args: List[Args]) -> List[InsertResult]:
-        for exec in self.driver.executor():
+        with self.driver.executor() as exec:
             return [
                 InsertResult(x)
                 for x in exec.job_insert_many(self.__make_insert_params_many(args))
             ]
-
-        return []  # for MyPy's benefit
 
     def insert_many_tx(self, tx, args: List[Args]) -> List[InsertResult]:
         exec = self.driver.unwrap_executor(tx)
@@ -171,8 +167,6 @@ class Client:
                 return InsertResult(existing_job, unique_skipped_as_duplicated=True)
 
             return insert_func()
-
-        return InsertResult()  # for MyPy's benefit
 
     @staticmethod
     def __make_insert_params(
