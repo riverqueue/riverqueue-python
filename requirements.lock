@@ -10,6 +10,6 @@
 
 -e file:.
 sqlalchemy==2.0.30
-    # via riverqueue-py
+    # via riverqueue
 typing-extensions==4.12.1
     # via sqlalchemy

@@ -22,6 +22,9 @@ dev-dependencies = [
     "testcontainers>=4.5.1",
     "psycopg2-binary>=2.9.9",
     "mypy>=1.10.0",
+    "asyncpg>=0.29.0",
+    "greenlet>=3.0.3",
+    "pytest-asyncio>=0.23.7",
 ]
 
 [tool.hatch.metadata]
