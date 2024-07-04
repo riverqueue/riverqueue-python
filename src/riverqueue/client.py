@@ -48,7 +48,6 @@ class Client:
     def __init__(self, driver: DriverProtocol, advisory_lock_prefix=None):
         self.driver = driver
         self.advisory_lock_prefix = advisory_lock_prefix
-        self.time_now_utc = lambda: datetime.now(timezone.utc)  # for test time stubbing
 
     def insert(
         self, args: Args, insert_opts: Optional[InsertOpts] = None
@@ -123,7 +122,7 @@ class Client:
 
         if unique_opts.by_period:
             lower_period_bound = self.__truncate_time(
-                self.time_now_utc(), unique_opts.by_period
+                datetime.now(timezone.utc), unique_opts.by_period
             )
 
             any_unique_opts = True
