@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional, Protocol, Tuple, List, Callable
 
-from .driver import GetParams, JobInsertParams, DriverProtocol
+from .driver import GetParams, JobInsertParams, DriverProtocol, ExecutorProtocol
 from .model import InsertResult
 from .fnv import fnv1_hash
 
@@ -53,18 +53,45 @@ class Client:
     def insert(
         self, args: Args, insert_opts: Optional[InsertOpts] = None
     ) -> InsertResult:
+        with self.driver.executor() as exec:
+            if not insert_opts:
+                insert_opts = InsertOpts()
+            insert_params, unique_opts = self.__make_insert_params(args, insert_opts)
+
+            def insert():
+                return InsertResult(exec.job_insert(insert_params))
+
+            return self.__check_unique_job(exec, insert_params, unique_opts, insert)
+
+    def insert_tx(
+        self, tx, args: Args, insert_opts: Optional[InsertOpts] = None
+    ) -> InsertResult:
+        exec = self.driver.unwrap_executor(tx)
         if not insert_opts:
             insert_opts = InsertOpts()
         insert_params, unique_opts = self.__make_insert_params(args, insert_opts)
 
         def insert():
-            print(self.driver)
-            return InsertResult(self.driver.job_insert(insert_params))
+            return InsertResult(exec.job_insert(insert_params))
 
-        return self.__check_unique_job(insert_params, unique_opts, insert)
+        return self.__check_unique_job(exec, insert_params, unique_opts, insert)
 
     def insert_many(self, args: List[Args]) -> List[InsertResult]:
-        all_params = [
+        with self.driver.executor() as exec:
+            return [
+                InsertResult(x)
+                for x in exec.job_insert_many(self.__make_insert_params_many(args))
+            ]
+
+    def insert_many_tx(self, tx, args: List[Args]) -> List[InsertResult]:
+        exec = self.driver.unwrap_executor(tx)
+        return [
+            InsertResult(x)
+            for x in exec.job_insert_many(self.__make_insert_params_many(args))
+        ]
+
+    def __make_insert_params_many(self, args: List[Args]) -> List[JobInsertParams]:
+        return [
             self.__make_insert_params(
                 arg.args, arg.insert_opts or InsertOpts(), is_insert_many=True
             )[0]
@@ -72,10 +99,10 @@ class Client:
             else self.__make_insert_params(arg, InsertOpts(), is_insert_many=True)[0]
             for arg in args
         ]
-        return [InsertResult(x) for x in self.driver.job_insert_many(all_params)]
 
     def __check_unique_job(
         self,
+        exec: ExecutorProtocol,
         insert_params: JobInsertParams,
         unique_opts: Optional[UniqueOpts],
         insert_func: Callable[[], InsertResult],
@@ -125,7 +152,7 @@ class Client:
         if not any_unique_opts:
             return insert_func()
 
-        with self.driver.transaction():
+        with exec.transaction():
             if self.advisory_lock_prefix is None:
                 lock_key = fnv1_hash(lock_str.encode("utf-8"), 64)
             else:
@@ -133,9 +160,9 @@ class Client:
                 lock_key = (prefix << 32) | fnv1_hash(lock_str.encode("utf-8"), 32)
 
             lock_key = self.__uint64_to_int64(lock_key)
-            self.driver.advisory_lock(lock_key)
+            exec.advisory_lock(lock_key)
 
-            existing_job = self.driver.job_get_by_kind_and_unique_properties(get_params)
+            existing_job = exec.job_get_by_kind_and_unique_properties(get_params)
             if existing_job:
                 return InsertResult(existing_job, unique_skipped_as_duplicated=True)
 
@@ -143,7 +170,9 @@ class Client:
 
     @staticmethod
     def __make_insert_params(
-        args: Args, insert_opts: InsertOpts, is_insert_many: bool = False
+        args: Args,
+        insert_opts: InsertOpts,
+        is_insert_many: bool = False,
     ) -> Tuple[JobInsertParams, Optional[UniqueOpts]]:
         if not hasattr(args, "kind"):
             raise Exception("args should respond to `kind`")

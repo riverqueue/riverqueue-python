@@ -1,6 +1,7 @@
+from contextlib import _GeneratorContextManager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, List, ContextManager, Optional, Protocol
+from typing import Any, Iterator, List, Optional, Protocol
 
 from ..model import Job
 
@@ -34,11 +35,11 @@ class JobInsertParams:
     finalized_at: Optional[datetime] = None
 
 
-class DriverProtocol(Protocol):
+class ExecutorProtocol(Protocol):
     def advisory_lock(self, lock: int) -> None:
         pass
 
-    def job_insert(self, insert_params: JobInsertParams) -> Optional[Job]:
+    def job_insert(self, insert_params: JobInsertParams) -> Job:
         pass
 
     def job_insert_many(self, all_params) -> List[Job]:
@@ -49,5 +50,14 @@ class DriverProtocol(Protocol):
     ) -> Optional[Job]:
         pass
 
-    def transaction(self) -> ContextManager:
+    def transaction(self) -> _GeneratorContextManager:
+        pass
+
+
+class DriverProtocol(Protocol):
+    @contextmanager
+    def executor(self) -> Iterator[ExecutorProtocol]:
+        pass
+
+    def unwrap_executor(self, tx) -> ExecutorProtocol:
         pass
