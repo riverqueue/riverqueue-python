@@ -9,8 +9,7 @@ from .fnv import fnv1_hash
 MAX_ATTEMPTS_DEFAULT = 25
 PRIORITY_DEFAULT = 1
 QUEUE_DEFAULT = "default"
-
-DEFAULT_UNIQUE_STATES = ["available", "completed", "running", "retryable", "scheduled"]
+UNIQUE_STATES_DEFAULT = ["available", "completed", "running", "retryable", "scheduled"]
 
 
 class Args(Protocol):
@@ -119,8 +118,8 @@ class Client:
             get_params.state = unique_opts.by_state
             lock_str += f"&state={','.join(unique_opts.by_state)}"
         else:
-            get_params.state = DEFAULT_UNIQUE_STATES
-            lock_str += f"&state={','.join(DEFAULT_UNIQUE_STATES)}"
+            get_params.state = UNIQUE_STATES_DEFAULT
+            lock_str += f"&state={','.join(UNIQUE_STATES_DEFAULT)}"
 
         if not any_unique_opts:
             return insert_func()
