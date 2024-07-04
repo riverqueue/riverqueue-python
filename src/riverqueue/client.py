@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from typing import Any, Optional, Protocol, Tuple, List, Callable
+from typing import Any, Literal, Optional, Protocol, Tuple, List, Callable
 
 from .driver import GetParams, JobInsertParams, DriverProtocol, ExecutorProtocol
 from .model import InsertResult
@@ -37,10 +37,10 @@ class InsertOpts:
 
 @dataclass
 class UniqueOpts:
-    by_args: Optional[Any] = None
-    by_period: Optional[Any] = None
-    by_queue: Optional[Any] = None
-    by_state: Optional[Any] = None
+    by_args: Optional[Literal[True]] = None
+    by_period: Optional[int] = None
+    by_queue: Optional[Literal[True]] = None
+    by_state: Optional[list[str]] = None
 
 
 class Client:
