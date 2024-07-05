@@ -39,3 +39,6 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/riverqueue"]
+
+[tool.ruff]
+exclude = ["./src/riverqueue/driver/riversqlalchemy/dbsqlc"]

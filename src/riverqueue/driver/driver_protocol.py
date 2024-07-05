@@ -28,6 +28,7 @@ class GetParams:
 class JobInsertParams:
     kind: str
     args: Optional[Any] = None
+    created_at: Optional[datetime] = None
     finalized_at: Optional[datetime] = None
     metadata: Optional[Any] = None
     max_attempts: Optional[int] = field(default=25)
