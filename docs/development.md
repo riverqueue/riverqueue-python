@@ -61,3 +61,28 @@ $ rye fmt
 ```
 
 Rye uses [Ruff](https://github.com/astral-sh/ruff) under the hood for code formatting.
+
+## Publish package
+
+1. Pull existing `master` and tags, choose a version, and create a branch:
+
+    ```shell
+    git checkout master && git pull --rebase
+    export VERSION=v0.x.0
+    git checkout -b $USER-$VERSION
+    ```
+
+2. Update `CHANGELOG.md` and `pyproject.toml` to the new version number, and open a pull request. Get it reviewed and merged.
+
+3. Pull down the merged pull request, build the project (goes to `dist/`), publish it to PyPI, cut a tag for the new version, and push it to GitHub:
+
+    ```shell
+    git pull origin master
+
+    rye build
+    rye publish
+
+    git tag $VERSION
+    git push --tags
+    ```
+4. Cut a new GitHub release by visiting [new release](https://github.com/riverqueue/riverqueue-python/releases/new), selecting the new tag, and copying in the version's `CHANGELOG.md` content as the release body.
