@@ -147,3 +147,19 @@ def test_insert_with_unique_opts_by_state(client, mock_exec):
     # Check that the UniqueOpts were correctly processed
     call_args = mock_exec.job_insert.call_args[0][0]
     assert call_args.kind == "simple"
+
+
+def test_check_advisory_lock_prefix_bounds():
+    Client(mock_driver, advisory_lock_prefix=123)
+
+    with pytest.raises(OverflowError) as ex:
+        Client(mock_driver, advisory_lock_prefix=-1)
+    assert "can't convert negative int to unsigned" == str(ex.value)
+
+    # 2^32-1 is 0xffffffff (1s for 32 bits) which fits
+    Client(mock_driver, advisory_lock_prefix=2**32 - 1)
+
+    # 2^32 is 0x100000000, which does not
+    with pytest.raises(OverflowError) as ex:
+        Client(mock_driver, advisory_lock_prefix=2**32)
+    assert "int too big to convert" == str(ex.value)

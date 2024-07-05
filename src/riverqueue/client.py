@@ -49,7 +49,9 @@ class AsyncClient:
         self, driver: AsyncDriverProtocol, advisory_lock_prefix: Optional[int] = None
     ):
         self.driver = driver
-        self.advisory_lock_prefix = advisory_lock_prefix
+        self.advisory_lock_prefix = _check_advisory_lock_prefix_bounds(
+            advisory_lock_prefix
+        )
 
     async def insert(
         self, args: Args, insert_opts: Optional[InsertOpts] = None
@@ -122,7 +124,9 @@ class Client:
         self, driver: DriverProtocol, advisory_lock_prefix: Optional[int] = None
     ):
         self.driver = driver
-        self.advisory_lock_prefix = advisory_lock_prefix
+        self.advisory_lock_prefix = _check_advisory_lock_prefix_bounds(
+            advisory_lock_prefix
+        )
 
     def insert(
         self, args: Args, insert_opts: Optional[InsertOpts] = None
@@ -245,6 +249,17 @@ def _build_unique_get_params_and_lock_key(
         lock_key = (prefix << 32) | fnv1_hash(lock_str.encode("utf-8"), 32)
 
     return (get_params, _uint64_to_int64(lock_key))
+
+
+def _check_advisory_lock_prefix_bounds(
+    advisory_lock_prefix: Optional[int],
+) -> Optional[int]:
+    if advisory_lock_prefix:
+        print("in_bytes", advisory_lock_prefix.to_bytes(4))
+        # We only reserve 4 bytes for the prefix, so make sure the given one
+        # properly fits. This will error in case that's not the case.
+        advisory_lock_prefix.to_bytes(4)
+    return advisory_lock_prefix
 
 
 def _make_insert_params(
