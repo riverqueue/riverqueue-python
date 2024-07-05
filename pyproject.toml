@@ -17,11 +17,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.urls]
-Homepage = "https://riverqueue.com"
-Documentation = "https://riverqueue.com/docs"
-Repository = "https://github.com/riverqueue/riverqueue-python.git"
-Issues = "https://github.com/riverqueue/riverqueue-python/issues"
 Changelog = "https://github.com/riverqueue/riverqueue-python/blob/master/CHANGELOG.md"
+Documentation = "https://riverqueue.com/docs"
+Homepage = "https://riverqueue.com"
+Issues = "https://github.com/riverqueue/riverqueue-python/issues"
+Repository = "https://github.com/riverqueue/riverqueue-python.git"
 
 [tool.rye]
 managed = true

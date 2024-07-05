@@ -84,5 +84,8 @@ Rye uses [Ruff](https://github.com/astral-sh/ruff) under the hood for code forma
 
     git tag $VERSION
     git push --tags
+
+    rm dist/* # or else PyPI will keep uploading old versions forever
     ```
+
 4. Cut a new GitHub release by visiting [new release](https://github.com/riverqueue/riverqueue-python/releases/new), selecting the new tag, and copying in the version's `CHANGELOG.md` content as the release body.
