@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2024-07-04
+
+### Changed
+
+- Add usage instructions README, add job state constants, and change return value of `insert_many()` and `insert_many_tx()` to an integer instead of a list of jobs. [PR #19](https://github.com/riverqueue/river/pull/19).
+
 ## [0.1.1] - 2024-07-04
 
 ### Fixed
 
-- Fix `pyproject.toml` description and add various URLs like to homepage, docs, and GitHub repositories. [PR #408](https://github.com/riverqueue/river/pull/408).
+- Fix `pyproject.toml` description and add various URLs like to homepage, docs, and GitHub repositories. [PR #18](https://github.com/riverqueue/river/pull/18).
 
 ## [0.1.0] - 2024-07-04
 
