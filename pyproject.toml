@@ -3,7 +3,8 @@ name = "riverqueue"
 version = "0.1.0"
 description = "Add your description here"
 authors = [
-    { name = "Eric Hauser", email = "ewhauser@gmail.com" }
+    { name = "Eric Hauser", email = "ewhauser@gmail.com" },
+    { name = "Brandur Leach", email = "brandur@brandur.org" }
 ]
 dependencies = [
     "sqlalchemy>=2.0.30",
