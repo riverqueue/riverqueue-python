@@ -7,10 +7,24 @@ from .driver.driver_protocol import AsyncDriverProtocol, AsyncExecutorProtocol
 from .model import InsertResult
 from .fnv import fnv1_hash
 
+JOB_STATE_AVAILABLE = "available"
+JOB_STATE_CANCELLED = "cancelled"
+JOB_STATE_COMPLETED = "completed"
+JOB_STATE_DISCARDED = "discarded"
+JOB_STATE_RETRYABLE = "retryable"
+JOB_STATE_RUNNING = "running"
+JOB_STATE_SCHEDULED = "scheduled"
+
 MAX_ATTEMPTS_DEFAULT = 25
 PRIORITY_DEFAULT = 1
 QUEUE_DEFAULT = "default"
-UNIQUE_STATES_DEFAULT = ["available", "completed", "running", "retryable", "scheduled"]
+UNIQUE_STATES_DEFAULT = [
+    JOB_STATE_AVAILABLE,
+    JOB_STATE_COMPLETED,
+    JOB_STATE_RUNNING,
+    JOB_STATE_RETRYABLE,
+    JOB_STATE_SCHEDULED,
+]
 
 
 class Args(Protocol):
@@ -81,19 +95,13 @@ class AsyncClient:
 
         return await self.__check_unique_job(exec, insert_params, unique_opts, insert)
 
-    async def insert_many(self, args: List[Args]) -> List[InsertResult]:
+    async def insert_many(self, args: List[Args | InsertManyParams]) -> int:
         async with self.driver.executor() as exec:
-            return [
-                InsertResult(x)
-                for x in await exec.job_insert_many(_make_insert_params_many(args))
-            ]
+            return await exec.job_insert_many(_make_insert_params_many(args))
 
-    async def insert_many_tx(self, tx, args: List[Args]) -> List[InsertResult]:
+    async def insert_many_tx(self, tx, args: List[Args | InsertManyParams]) -> int:
         exec = self.driver.unwrap_executor(tx)
-        return [
-            InsertResult(x)
-            for x in await exec.job_insert_many(_make_insert_params_many(args))
-        ]
+        return await exec.job_insert_many(_make_insert_params_many(args))
 
     async def __check_unique_job(
         self,
@@ -154,19 +162,13 @@ class Client:
 
         return self.__check_unique_job(exec, insert_params, unique_opts, insert)
 
-    def insert_many(self, args: List[Args]) -> List[InsertResult]:
+    def insert_many(self, args: List[Args | InsertManyParams]) -> int:
         with self.driver.executor() as exec:
-            return [
-                InsertResult(x)
-                for x in exec.job_insert_many(_make_insert_params_many(args))
-            ]
+            return exec.job_insert_many(_make_insert_params_many(args))
 
-    def insert_many_tx(self, tx, args: List[Args]) -> List[InsertResult]:
+    def insert_many_tx(self, tx, args: List[Args | InsertManyParams]) -> int:
         exec = self.driver.unwrap_executor(tx)
-        return [
-            InsertResult(x)
-            for x in exec.job_insert_many(_make_insert_params_many(args))
-        ]
+        return exec.job_insert_many(_make_insert_params_many(args))
 
     def __check_unique_job(
         self,
@@ -298,7 +300,9 @@ def _make_insert_params(
     return insert_params, unique_opts
 
 
-def _make_insert_params_many(args: List[Args]) -> List[JobInsertParams]:
+def _make_insert_params_many(
+    args: List[Args | InsertManyParams],
+) -> List[JobInsertParams]:
     return [
         _make_insert_params(
             arg.args, arg.insert_opts or InsertOpts(), is_insert_many=True
