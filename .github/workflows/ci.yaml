@@ -53,15 +53,6 @@ jobs:
       - name: Rye sync
         run: rye sync
 
-      - name: Format check
-        run: rye fmt --check
-
-      - name: Lint
-        run: rye lint
-
-      - name: Type check
-        run: make type-check
-
       - name: Build
         run: rye build
 
@@ -122,3 +113,25 @@ jobs:
 
       - name: Run examples
         run: rye run python3 -m examples.all
+
+  format_lint_and_type_check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rye
+        uses: eifinger/setup-rye@v3
+
+      - name: Rye sync
+        run: rye sync
+
+      - name: Format check
+        run: rye fmt --check
+
+      - name: Lint
+        run: rye lint
+
+      - name: Type check
+        run: make type-check
