@@ -4,7 +4,7 @@ An insert-only Python client for [River](https://github.com/riverqueue/river) pa
 
 ## Basic usage
 
-Your project should bundle the [`riverqueue` package](https://pypi.org/project/riverqueue/) in its dependencies. How to go about this depend on your toolchain, but for example in [Rye](https://github.com/astral-sh/rye), it'd look like:
+Your project should bundle the [`riverqueue` package](https://pypi.org/project/riverqueue/) in its dependencies. How to go about this will depend on your toolchain, but for example in [Rye](https://github.com/astral-sh/rye), it'd look like:
 
 ```shell
 rye add riverqueue
