@@ -22,12 +22,33 @@ jobs:
   build_and_test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rye
         uses: eifinger/setup-rye@v3
+
+      # Needed for River's CLI. There is a version of Go on Actions' base image,
+      # but it's old and can't read modern `go.mod` annotations correctly.
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          check-latest: true
 
       - name: Rye sync
         run: rye sync
@@ -44,8 +65,17 @@ jobs:
       - name: Build
         run: rye build
 
+      - name: Install River CLI
+        run: go install github.com/riverqueue/river/cmd/river@latest
+
+      - name: Create database
+        run: psql --echo-errors --quiet -c '\timing off' -c "CREATE DATABASE ${TEST_DATABASE_NAME};" ${ADMIN_DATABASE_URL}
+
+      - name: river migrate-up
+        run: river migrate-up --database-url "$TEST_DATABASE_URL"
+
       - name: Test
-        run: RIVER_USE_DOCKER=true rye test
+        run: rye test
 
   examples_run:
     runs-on: ubuntu-latest

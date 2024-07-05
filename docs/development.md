@@ -36,12 +36,6 @@ Run all tests:
 $ rye test
 ```
 
-_Or_, using a Docker test Postgres container instead of a test database:
-
-```shell
-RIVER_USE_DOCKER=true rye test
-```
-
 Run a specific test (or without `-k` option for all tests in a single file):
 
 ```shell

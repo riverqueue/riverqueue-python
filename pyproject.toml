@@ -19,7 +19,6 @@ build-backend = "hatchling.build"
 managed = true
 dev-dependencies = [
     "pytest>=8.2.1",
-    "testcontainers>=4.5.1",
     "psycopg2-binary>=2.9.9",
     "mypy>=1.10.0",
     "asyncpg>=0.29.0",

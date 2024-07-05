@@ -24,7 +24,9 @@ def driver(engine: sqlalchemy.Engine) -> Iterator[riversqlalchemy.Driver]:
 
 
 @pytest_asyncio.fixture
-async def driver_async(engine_async) -> AsyncIterator[riversqlalchemy.AsyncDriver]:
+async def driver_async(
+    engine_async: sqlalchemy.ext.asyncio.AsyncEngine,
+) -> AsyncIterator[riversqlalchemy.AsyncDriver]:
     async with engine_async.connect() as conn_tx:
         await conn_tx.execute(sqlalchemy.text("SET search_path TO public"))
         yield riversqlalchemy.AsyncDriver(conn_tx)

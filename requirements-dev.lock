@@ -10,15 +10,7 @@
 
 -e file:.
 asyncpg==0.29.0
-certifi==2024.6.2
-    # via requests
-charset-normalizer==3.3.2
-    # via requests
-docker==7.1.0
-    # via testcontainers
 greenlet==3.0.3
-idna==3.7
-    # via requests
 iniconfig==2.0.0
     # via pytest
 mypy==1.10.0
@@ -32,18 +24,8 @@ psycopg2-binary==2.9.9
 pytest==8.2.1
     # via pytest-asyncio
 pytest-asyncio==0.23.7
-requests==2.32.3
-    # via docker
 sqlalchemy==2.0.30
     # via riverqueue
-testcontainers==4.5.1
 typing-extensions==4.12.1
     # via mypy
     # via sqlalchemy
-    # via testcontainers
-urllib3==2.2.1
-    # via docker
-    # via requests
-    # via testcontainers
-wrapt==1.16.0
-    # via testcontainers
