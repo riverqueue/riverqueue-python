@@ -81,6 +81,46 @@ class JobInsertFastParams:
     tags: List[str]
 
 
+JOB_INSERT_FAST_MANY = """-- name: job_insert_fast_many \\:execrows
+INSERT INTO river_job(
+    args,
+    kind,
+    max_attempts,
+    metadata,
+    priority,
+    queue,
+    scheduled_at,
+    state,
+    tags
+) SELECT
+    unnest(:p1\\:\\:jsonb[]),
+    unnest(:p2\\:\\:text[]),
+    unnest(:p3\\:\\:smallint[]),
+    unnest(:p4\\:\\:jsonb[]),
+    unnest(:p5\\:\\:smallint[]),
+    unnest(:p6\\:\\:text[]),
+    unnest(:p7\\:\\:timestamptz[]),
+    unnest(:p8\\:\\:river_job_state[]),
+
+    -- Had trouble getting multi-dimensional arrays to play nicely with sqlc,
+    -- but it might be possible. For now, join tags into a single string.
+    string_to_array(unnest(:p9\\:\\:text[]), ',')
+"""
+
+
+@dataclasses.dataclass()
+class JobInsertFastManyParams:
+    args: List[Any]
+    kind: List[str]
+    max_attempts: List[int]
+    metadata: List[Any]
+    priority: List[int]
+    queue: List[str]
+    scheduled_at: List[datetime.datetime]
+    state: List[models.RiverJobState]
+    tags: List[str]
+
+
 class Querier:
     def __init__(self, conn: sqlalchemy.engine.Connection):
         self._conn = conn
@@ -153,6 +193,20 @@ class Querier:
             scheduled_at=row[14],
             tags=row[15],
         )
+
+    def job_insert_fast_many(self, arg: JobInsertFastManyParams) -> int:
+        result = self._conn.execute(sqlalchemy.text(JOB_INSERT_FAST_MANY), {
+            "p1": arg.args,
+            "p2": arg.kind,
+            "p3": arg.max_attempts,
+            "p4": arg.metadata,
+            "p5": arg.priority,
+            "p6": arg.queue,
+            "p7": arg.scheduled_at,
+            "p8": arg.state,
+            "p9": arg.tags,
+        })
+        return result.rowcount
 
 
 class AsyncQuerier:
@@ -227,3 +281,17 @@ class AsyncQuerier:
             scheduled_at=row[14],
             tags=row[15],
         )
+
+    async def job_insert_fast_many(self, arg: JobInsertFastManyParams) -> int:
+        result = await self._conn.execute(sqlalchemy.text(JOB_INSERT_FAST_MANY), {
+            "p1": arg.args,
+            "p2": arg.kind,
+            "p3": arg.max_attempts,
+            "p4": arg.metadata,
+            "p5": arg.priority,
+            "p6": arg.queue,
+            "p7": arg.scheduled_at,
+            "p8": arg.state,
+            "p9": arg.tags,
+        })
+        return result.rowcount

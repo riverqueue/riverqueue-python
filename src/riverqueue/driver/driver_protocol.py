@@ -27,16 +27,16 @@ class GetParams:
 @dataclass
 class JobInsertParams:
     kind: str
-    args: Optional[Any] = None
+    args: Any = None
     created_at: Optional[datetime] = None
     finalized_at: Optional[datetime] = None
     metadata: Optional[Any] = None
-    max_attempts: Optional[int] = field(default=25)
-    priority: Optional[int] = field(default=1)
-    queue: Optional[str] = field(default="default")
+    max_attempts: int = field(default=25)
+    priority: int = field(default=1)
+    queue: str = field(default="default")
     scheduled_at: Optional[datetime] = None
-    state: Optional[str] = field(default="available")
-    tags: Optional[List[str]] = field(default_factory=list)
+    state: str = field(default="available")
+    tags: list[str] = field(default_factory=list)
 
 
 class AsyncExecutorProtocol(Protocol):

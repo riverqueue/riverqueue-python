@@ -7,7 +7,7 @@ from typing import AsyncIterator, Iterator
 from unittest.mock import patch
 
 from riverqueue import Client, InsertOpts, UniqueOpts
-from riverqueue.client import AsyncClient
+from riverqueue.client import AsyncClient, InsertManyParams
 from riverqueue.driver import riversqlalchemy
 from riverqueue.driver.driver_protocol import GetParams
 
@@ -180,3 +180,52 @@ async def test_insert_with_unique_opts_by_state_async(client_async):
     assert insert_res.job
     insert_res2 = await client_async.insert(SimpleArgs(), insert_opts=insert_opts)
     assert insert_res.job == insert_res2.job
+
+
+def test_insert_many_with_only_args_sync(client, driver):
+    num_inserted = client.insert_many([SimpleArgs()])
+    assert num_inserted == 1
+
+
+@pytest.mark.asyncio
+async def test_insert_many_with_only_args_async(client_async):
+    num_inserted = await client_async.insert_many([SimpleArgs()])
+    assert num_inserted == 1
+
+
+def test_insert_many_with_insert_opts_sync(client, driver):
+    num_inserted = client.insert_many(
+        [
+            InsertManyParams(
+                args=SimpleArgs(),
+                insert_opts=InsertOpts(queue="high_priority", unique_opts=None),
+            )
+        ]
+    )
+    assert num_inserted == 1
+
+
+@pytest.mark.asyncio
+async def test_insert_many_with_insert_opts_async(client_async):
+    num_inserted = await client_async.insert_many(
+        [
+            InsertManyParams(
+                args=SimpleArgs(),
+                insert_opts=InsertOpts(queue="high_priority", unique_opts=None),
+            )
+        ]
+    )
+    assert num_inserted == 1
+
+
+def test_insert_many_tx_sync(client, engine):
+    with engine.begin() as conn_tx:
+        num_inserted = client.insert_many_tx(conn_tx, [SimpleArgs()])
+        assert num_inserted == 1
+
+
+@pytest.mark.asyncio
+async def test_insert_many_tx_async(client_async, engine_async):
+    async with engine_async.begin() as conn_tx:
+        num_inserted = await client_async.insert_many_tx(conn_tx, [SimpleArgs()])
+        assert num_inserted == 1

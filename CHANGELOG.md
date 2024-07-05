@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Implement `insert_many` and `insert_many_tx`. [PR #22](https://github.com/riverqueue/river/pull/22).
+
 ## [0.2.0] - 2024-07-04
 
 ### Changed

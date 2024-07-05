@@ -70,3 +70,28 @@ INSERT INTO river_job(
     @state::river_job_state,
     coalesce(@tags::varchar(255)[], '{}')
 ) RETURNING *;
+
+-- name: JobInsertFastMany :execrows
+INSERT INTO river_job(
+    args,
+    kind,
+    max_attempts,
+    metadata,
+    priority,
+    queue,
+    scheduled_at,
+    state,
+    tags
+) SELECT
+    unnest(@args::jsonb[]),
+    unnest(@kind::text[]),
+    unnest(@max_attempts::smallint[]),
+    unnest(@metadata::jsonb[]),
+    unnest(@priority::smallint[]),
+    unnest(@queue::text[]),
+    unnest(@scheduled_at::timestamptz[]),
+    unnest(@state::river_job_state[]),
+
+    -- Had trouble getting multi-dimensional arrays to play nicely with sqlc,
+    -- but it might be possible. For now, join tags into a single string.
+    string_to_array(unnest(@tags::text[]), ',');
