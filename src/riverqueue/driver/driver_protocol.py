@@ -28,6 +28,7 @@ class GetParams:
 class JobInsertParams:
     kind: str
     args: Optional[Any] = None
+    finalized_at: Optional[datetime] = None
     metadata: Optional[Any] = None
     max_attempts: Optional[int] = field(default=25)
     priority: Optional[int] = field(default=1)
@@ -35,7 +36,6 @@ class JobInsertParams:
     scheduled_at: Optional[datetime] = None
     state: Optional[str] = field(default="available")
     tags: Optional[List[str]] = field(default_factory=list)
-    finalized_at: Optional[datetime] = None
 
 
 class AsyncExecutorProtocol(Protocol):

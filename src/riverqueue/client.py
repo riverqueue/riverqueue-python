@@ -42,12 +42,12 @@ class InsertManyParams:
 
 @dataclass
 class InsertOpts:
-    scheduled_at: Optional[datetime] = None
-    unique_opts: Optional["UniqueOpts"] = None
     max_attempts: Optional[int] = None
     priority: Optional[int] = None
     queue: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
     tags: Optional[List[Any]] = None
+    unique_opts: Optional["UniqueOpts"] = None
 
 
 @dataclass
