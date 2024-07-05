@@ -38,10 +38,10 @@ insert_res = client.insert(
 insert_res.job # inserted job row
 ```
 
-Job args should comply with the following [protocol](https://peps.python.org/pep-0544/):
+Job args should comply with the `riverqueue.JobArgs` [protocol](https://peps.python.org/pep-0544/):
 
 ```python
-class Args(Protocol):
+class JobArgs(Protocol):
     kind: str
 
     def to_json(self) -> str:
@@ -137,7 +137,7 @@ with engine.begin() as session:
     )
 ```
 
-## Asynchronous I/O (`asyncio`)
+## Asynchronous I/O (asyncio)
 
 The package supports River's [`asyncio` (asynchronous I/O)](https://docs.python.org/3/library/asyncio.html) through an alternate `AsyncClient` and `riversqlalchemy.AsyncDriver`. You'll need to make sure to use SQLAlchemy's alternative async engine and an asynchronous Postgres driver like [`asyncpg`](https://github.com/MagicStack/asyncpg), but otherwise usage looks very similar to use without async:
 
