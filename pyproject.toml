@@ -1,6 +1,6 @@
 [project]
 name = "riverqueue"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python insert-only client for River."
 authors = [
     { name = "Eric Hauser", email = "ewhauser@gmail.com" },
