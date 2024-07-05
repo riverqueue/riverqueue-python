@@ -2,6 +2,7 @@ from contextlib import (
     asynccontextmanager,
     contextmanager,
 )
+from datetime import datetime, timezone
 from riverqueue.driver.driver_protocol import AsyncDriverProtocol, AsyncExecutorProtocol
 from sqlalchemy import Engine
 from sqlalchemy.engine import Connection
@@ -16,7 +17,7 @@ from typing import (
 
 from ...driver import DriverProtocol, ExecutorProtocol, GetParams, JobInsertParams
 from ...model import Job
-from .dbsqlc import river_job, pg_misc
+from .dbsqlc import models, river_job, pg_misc
 
 
 class AsyncExecutor(AsyncExecutorProtocol):
@@ -36,8 +37,11 @@ class AsyncExecutor(AsyncExecutorProtocol):
             ),
         )
 
-    async def job_insert_many(self, all_params) -> int:
-        raise NotImplementedError("sqlc doesn't implement copy in python yet")
+    async def job_insert_many(self, all_params: list[JobInsertParams]) -> int:
+        await self.job_querier.job_insert_fast_many(
+            _build_insert_many_params(all_params)
+        )
+        return len(all_params)
 
     async def job_get_by_kind_and_unique_properties(
         self, get_params: GetParams
@@ -94,8 +98,9 @@ class Executor(ExecutorProtocol):
             ),
         )
 
-    def job_insert_many(self, all_params) -> int:
-        raise NotImplementedError("sqlc doesn't implement copy in python yet")
+    def job_insert_many(self, all_params: list[JobInsertParams]) -> int:
+        self.job_querier.job_insert_fast_many(_build_insert_many_params(all_params))
+        return len(all_params)
 
     def job_get_by_kind_and_unique_properties(
         self, get_params: GetParams
@@ -133,3 +138,34 @@ class Driver(DriverProtocol):
 
     def unwrap_executor(self, tx) -> ExecutorProtocol:
         return Executor(tx)
+
+
+def _build_insert_many_params(
+    all_params: list[JobInsertParams],
+) -> river_job.JobInsertFastManyParams:
+    insert_many_params = river_job.JobInsertFastManyParams(
+        args=[],
+        kind=[],
+        max_attempts=[],
+        metadata=[],
+        priority=[],
+        queue=[],
+        scheduled_at=[],
+        state=[],
+        tags=[],
+    )
+
+    for insert_params in all_params:
+        insert_many_params.args.append(insert_params.args)
+        insert_many_params.kind.append(insert_params.kind)
+        insert_many_params.max_attempts.append(insert_params.max_attempts)
+        insert_many_params.metadata.append(insert_params.metadata or "{}")
+        insert_many_params.priority.append(insert_params.priority)
+        insert_many_params.queue.append(insert_params.queue)
+        insert_many_params.scheduled_at.append(
+            insert_params.scheduled_at or datetime.now(timezone.utc)
+        )
+        insert_many_params.state.append(cast(models.RiverJobState, insert_params.state))
+        insert_many_params.tags.append(",".join(insert_params.tags))
+
+    return insert_many_params

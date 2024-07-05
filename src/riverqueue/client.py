@@ -320,7 +320,7 @@ def _make_insert_params(
         queue=insert_opts.queue or args_insert_opts.queue or QUEUE_DEFAULT,
         scheduled_at=scheduled_at and scheduled_at.astimezone(timezone.utc),
         state="scheduled" if scheduled_at else "available",
-        tags=insert_opts.tags or args_insert_opts.tags,
+        tags=insert_opts.tags or args_insert_opts.tags or [],
     )
 
     return insert_params, unique_opts
