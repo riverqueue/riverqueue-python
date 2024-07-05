@@ -9,14 +9,8 @@
 #   generate-hashes: false
 
 -e file:.
-certifi==2024.6.2
-    # via requests
-charset-normalizer==3.3.2
-    # via requests
-docker==7.1.0
-    # via testcontainers
-idna==3.7
-    # via requests
+asyncpg==0.29.0
+greenlet==3.0.3
 iniconfig==2.0.0
     # via pytest
 mypy==1.10.0
@@ -28,18 +22,10 @@ pluggy==1.5.0
     # via pytest
 psycopg2-binary==2.9.9
 pytest==8.2.1
-requests==2.32.3
-    # via docker
+    # via pytest-asyncio
+pytest-asyncio==0.23.7
 sqlalchemy==2.0.30
-    # via riverqueue-py
-testcontainers==4.5.1
+    # via riverqueue
 typing-extensions==4.12.1
     # via mypy
     # via sqlalchemy
-    # via testcontainers
-urllib3==2.2.1
-    # via docker
-    # via requests
-    # via testcontainers
-wrapt==1.16.0
-    # via testcontainers

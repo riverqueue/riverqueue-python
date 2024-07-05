@@ -20,4 +20,4 @@ test: ## Run test suite with Rye/pytest
 
 .PHONY: type-check
 type-check: ## Run type check with MyPy
-	rye run mypy -p riverqueue -p tests
+	rye run mypy -p riverqueue -p examples -p tests

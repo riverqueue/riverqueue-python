@@ -1,39 +1,38 @@
 import os
-from typing import Iterator
 
 import pytest
-from testcontainers.postgres import PostgresContainer
 import sqlalchemy
-from sqlalchemy import Engine, text
+import sqlalchemy.ext.asyncio
 
 
 @pytest.fixture(scope="session")
-def engine() -> Iterator[Engine]:
-    if os.getenv("RIVER_USE_DOCKER"):
-        yield from engine_with_docker()
-    else:
-        yield from engine_with_database_url()
+def engine() -> sqlalchemy.Engine:
+    return sqlalchemy.create_engine(test_database_url())
 
 
-def engine_with_database_url() -> Iterator[Engine]:
+# @pytest_asyncio.fixture(scope="session")
+@pytest.fixture(scope="session")
+def engine_async() -> sqlalchemy.ext.asyncio.AsyncEngine:
+    return sqlalchemy.ext.asyncio.create_async_engine(
+        test_database_url(is_async=True),
+        # For the life of me I can't get async SQLAlchemy working with
+        # pytest-async. Even when using an explicit `engine.connect()`,
+        # SQLAlchemy seems to reuse the same connection between test cases,
+        # thereby resulting in a "another operation is in progress" error.
+        # This statement disables pooling which isn't ideal, but I've spent
+        # too many hours trying to figure this out so I'm calling it.
+        poolclass=sqlalchemy.pool.NullPool,
+    )
+
+
+def test_database_url(is_async: bool = False) -> str:
     database_url = os.getenv("TEST_DATABASE_URL", "postgres://localhost/river_test")
 
     # sqlalchemy removed support for postgres:// for reasons beyond comprehension
     database_url = database_url.replace("postgres://", "postgresql://")
 
-    yield sqlalchemy.create_engine(database_url)
+    # mix in an async driver for async
+    if is_async:
+        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
 
-
-def engine_with_docker() -> Iterator[Engine]:
-    with PostgresContainer("postgres:16") as postgres:
-        engine = sqlalchemy.create_engine(postgres.get_connection_url())
-        with engine.connect() as conn:
-            with open(
-                os.path.join(os.path.dirname(__file__), "0001-create-tables.sql")
-            ) as f:
-                statements = f.read()
-            for statement in statements.split(";"):
-                if statement.strip():
-                    conn.execute(text(statement))
-            conn.commit()
-        yield engine
+    return database_url
