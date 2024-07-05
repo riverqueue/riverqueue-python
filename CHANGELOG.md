@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix `pyproject.toml` description and add various URLs like to homepage, docs, and GitHub repositories. [PR #408](https://github.com/riverqueue/river/pull/408).
+
 ## [0.1.0] - 2024-07-04
 
 ### Added

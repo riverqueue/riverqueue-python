@@ -1,7 +1,7 @@
 [project]
 name = "riverqueue"
 version = "0.1.0"
-description = "Add your description here"
+description = "Python insert-only client for River."
 authors = [
     { name = "Eric Hauser", email = "ewhauser@gmail.com" },
     { name = "Brandur Leach", email = "brandur@brandur.org" }
@@ -15,6 +15,13 @@ requires-python = ">= 3.8"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[project.urls]
+Homepage = "https://riverqueue.com"
+Documentation = "https://riverqueue.com/docs"
+Repository = "https://github.com/riverqueue/riverqueue-python.git"
+Issues = "https://github.com/riverqueue/riverqueue-python/issues"
+Changelog = "https://github.com/riverqueue/riverqueue-python/blob/master/CHANGELOG.md"
 
 [tool.rye]
 managed = true
