@@ -16,7 +16,7 @@ from typing import (
 
 from ...driver import DriverProtocol, ExecutorProtocol, GetParams, JobInsertParams
 from ...model import Job
-from . import river_job, pg_misc
+from .dbsqlc import river_job, pg_misc
 
 
 class AsyncExecutor(AsyncExecutorProtocol):

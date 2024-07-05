@@ -10,6 +10,14 @@ help: ## Print this message
 fmt: ## Autoformat code with Rye/Ruff
 	rye fmt
 
+.PHONY: generate
+generate: ## Produce all generated artifacts
+generate: generate/sqlc
+
+.PHONY: generate/sqlc
+generate/sqlc: ## Generate sqlc code
+	cd src/riverqueue/driver/riversqlalchemy/dbsqlc && sqlc generate
+
 .PHONY: lint
 lint: ## Run linter with Rye/Ruff
 	rye lint
@@ -21,3 +29,11 @@ test: ## Run test suite with Rye/pytest
 .PHONY: type-check
 type-check: ## Run type check with MyPy
 	rye run mypy -p riverqueue -p examples -p tests
+
+.PHONY: verify
+verify: ## Verify all generated artifacts
+verify: verify/sqlc
+
+.PHONY: verify/sqlc
+verify/sqlc: # Verify sqlc code
+	cd src/riverqueue/driver/riversqlalchemy/dbsqlc && sqlc verify

@@ -62,6 +62,12 @@ $ rye fmt
 
 Rye uses [Ruff](https://github.com/astral-sh/ruff) under the hood for code formatting.
 
+## Generate sqlc code
+
+```shell
+$ make generate
+```
+
 ## Publish package
 
 1. Pull existing `master` and tags, choose a version, and create a branch:
