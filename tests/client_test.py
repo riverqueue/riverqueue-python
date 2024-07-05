@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, Mock, patch
 
@@ -66,20 +67,95 @@ def test_insert_tx(mock_driver, client):
     assert insert_res.job == "job_row"
 
 
-def test_insert_with_opts(client, mock_exec):
-    insert_opts = InsertOpts(queue="high_priority")
-
-    mock_exec.job_get_by_kind_and_unique_properties.return_value = None
+def test_insert_with_insert_opts_from_args(client, mock_exec):
     mock_exec.job_insert.return_value = "job_row"
 
-    insert_res = client.insert(SimpleArgs(), insert_opts=insert_opts)
+    insert_res = client.insert(
+        SimpleArgs(),
+        insert_opts=InsertOpts(
+            max_attempts=23, priority=2, queue="job_custom_queue", tags=["job_custom"]
+        ),
+    )
 
     mock_exec.job_insert.assert_called_once()
     assert insert_res.job == "job_row"
 
-    # Check that the InsertOpts were correctly passed to make_insert_params
-    call_args = mock_exec.job_insert.call_args[0][0]
-    assert call_args.queue == "high_priority"
+    insert_args = mock_exec.job_insert.call_args[0][0]
+    assert insert_args.max_attempts == 23
+    assert insert_args.priority == 2
+    assert insert_args.queue == "job_custom_queue"
+    assert insert_args.tags == ["job_custom"]
+
+
+def test_insert_with_insert_opts_from_job(client, mock_exec):
+    @dataclass
+    class MyArgs:
+        kind = "my_args"
+
+        @staticmethod
+        def insert_opts() -> InsertOpts:
+            return InsertOpts(
+                max_attempts=23,
+                priority=2,
+                queue="job_custom_queue",
+                tags=["job_custom"],
+            )
+
+        @staticmethod
+        def to_json() -> str:
+            return "{}"
+
+    mock_exec.job_insert.return_value = "job_row"
+
+    insert_res = client.insert(
+        MyArgs(),
+    )
+
+    mock_exec.job_insert.assert_called_once()
+    assert insert_res.job == "job_row"
+
+    insert_args = mock_exec.job_insert.call_args[0][0]
+    assert insert_args.max_attempts == 23
+    assert insert_args.priority == 2
+    assert insert_args.queue == "job_custom_queue"
+    assert insert_args.tags == ["job_custom"]
+
+
+def test_insert_with_insert_opts_precedence(client, mock_exec):
+    @dataclass
+    class MyArgs:
+        kind = "my_args"
+
+        @staticmethod
+        def insert_opts() -> InsertOpts:
+            return InsertOpts(
+                max_attempts=23,
+                priority=2,
+                queue="job_custom_queue",
+                tags=["job_custom"],
+            )
+
+        @staticmethod
+        def to_json() -> str:
+            return "{}"
+
+    mock_exec.job_insert.return_value = "job_row"
+
+    insert_res = client.insert(
+        SimpleArgs(),
+        insert_opts=InsertOpts(
+            max_attempts=17, priority=3, queue="my_queue", tags=["custom"]
+        ),
+    )
+
+    mock_exec.job_insert.assert_called_once()
+    assert insert_res.job == "job_row"
+
+    insert_args = mock_exec.job_insert.call_args[0][0]
+    assert insert_args.max_attempts == 17
+    assert insert_args.priority == 3
+    assert insert_args.queue == "my_queue"
+    assert insert_args.tags == ["custom"]
 
 
 def test_insert_with_unique_opts_by_args(client, mock_exec):
@@ -147,6 +223,40 @@ def test_insert_with_unique_opts_by_state(client, mock_exec):
     # Check that the UniqueOpts were correctly processed
     call_args = mock_exec.job_insert.call_args[0][0]
     assert call_args.kind == "simple"
+
+
+def test_insert_kind_error(client):
+    @dataclass
+    class MyArgs:
+        pass
+
+    with pytest.raises(AttributeError) as ex:
+        client.insert(MyArgs())
+    assert "'MyArgs' object has no attribute 'kind'" == str(ex.value)
+
+
+def test_insert_to_json_attribute_error(client):
+    @dataclass
+    class MyArgs:
+        kind = "my"
+
+    with pytest.raises(AttributeError) as ex:
+        client.insert(MyArgs())
+    assert "'MyArgs' object has no attribute 'to_json'" == str(ex.value)
+
+
+def test_insert_to_json_none_error(client):
+    @dataclass
+    class MyArgs:
+        kind = "my"
+
+        @staticmethod
+        def to_json() -> None:
+            return None
+
+    with pytest.raises(AssertionError) as ex:
+        client.insert(MyArgs())
+    assert "args should return non-nil from `to_json`" == str(ex.value)
 
 
 def test_check_advisory_lock_prefix_bounds():

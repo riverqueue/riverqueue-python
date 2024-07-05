@@ -1,6 +1,16 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from typing import Any, Awaitable, Literal, Optional, Protocol, Tuple, List, Callable
+from typing import (
+    Any,
+    Awaitable,
+    Literal,
+    Optional,
+    Protocol,
+    Tuple,
+    List,
+    Callable,
+    runtime_checkable,
+)
 
 from .driver import GetParams, JobInsertParams, DriverProtocol, ExecutorProtocol
 from .driver.driver_protocol import AsyncDriverProtocol, AsyncExecutorProtocol
@@ -27,19 +37,6 @@ UNIQUE_STATES_DEFAULT = [
 ]
 
 
-class Args(Protocol):
-    kind: str
-
-    def to_json(self) -> str:
-        pass
-
-
-@dataclass
-class InsertManyParams:
-    args: Args
-    insert_opts: Optional["InsertOpts"] = None
-
-
 @dataclass
 class InsertOpts:
     max_attempts: Optional[int] = None
@@ -48,6 +45,36 @@ class InsertOpts:
     scheduled_at: Optional[datetime] = None
     tags: Optional[List[Any]] = None
     unique_opts: Optional["UniqueOpts"] = None
+
+
+class JobArgs(Protocol):
+    """
+    Protocol that should be implemented by all job args.
+    """
+
+    kind: str
+
+    def to_json(self) -> str:
+        pass
+
+
+@runtime_checkable
+class JobArgsWithInsertOpts(Protocol):
+    """
+    Protocol that's optionally implemented by a JobArgs implementation so that
+    every inserted instance of them provides the same custom `InsertOpts`.
+    `InsertOpts` passed to insert functions will take precedence of one returned
+    by `JobArgsWithInsertOpts`.
+    """
+
+    def insert_opts(self) -> InsertOpts:
+        pass
+
+
+@dataclass
+class InsertManyParams:
+    args: JobArgs
+    insert_opts: Optional[InsertOpts] = None
 
 
 @dataclass
@@ -68,7 +95,7 @@ class AsyncClient:
         )
 
     async def insert(
-        self, args: Args, insert_opts: Optional[InsertOpts] = None
+        self, args: JobArgs, insert_opts: Optional[InsertOpts] = None
     ) -> InsertResult:
         async with self.driver.executor() as exec:
             if not insert_opts:
@@ -83,7 +110,7 @@ class AsyncClient:
             )
 
     async def insert_tx(
-        self, tx, args: Args, insert_opts: Optional[InsertOpts] = None
+        self, tx, args: JobArgs, insert_opts: Optional[InsertOpts] = None
     ) -> InsertResult:
         exec = self.driver.unwrap_executor(tx)
         if not insert_opts:
@@ -95,11 +122,11 @@ class AsyncClient:
 
         return await self.__check_unique_job(exec, insert_params, unique_opts, insert)
 
-    async def insert_many(self, args: List[Args | InsertManyParams]) -> int:
+    async def insert_many(self, args: List[JobArgs | InsertManyParams]) -> int:
         async with self.driver.executor() as exec:
             return await exec.job_insert_many(_make_insert_params_many(args))
 
-    async def insert_many_tx(self, tx, args: List[Args | InsertManyParams]) -> int:
+    async def insert_many_tx(self, tx, args: List[JobArgs | InsertManyParams]) -> int:
         exec = self.driver.unwrap_executor(tx)
         return await exec.job_insert_many(_make_insert_params_many(args))
 
@@ -137,7 +164,7 @@ class Client:
         )
 
     def insert(
-        self, args: Args, insert_opts: Optional[InsertOpts] = None
+        self, args: JobArgs, insert_opts: Optional[InsertOpts] = None
     ) -> InsertResult:
         with self.driver.executor() as exec:
             if not insert_opts:
@@ -150,7 +177,7 @@ class Client:
             return self.__check_unique_job(exec, insert_params, unique_opts, insert)
 
     def insert_tx(
-        self, tx, args: Args, insert_opts: Optional[InsertOpts] = None
+        self, tx, args: JobArgs, insert_opts: Optional[InsertOpts] = None
     ) -> InsertResult:
         exec = self.driver.unwrap_executor(tx)
         if not insert_opts:
@@ -162,11 +189,11 @@ class Client:
 
         return self.__check_unique_job(exec, insert_params, unique_opts, insert)
 
-    def insert_many(self, args: List[Args | InsertManyParams]) -> int:
+    def insert_many(self, args: List[JobArgs | InsertManyParams]) -> int:
         with self.driver.executor() as exec:
             return exec.job_insert_many(_make_insert_params_many(args))
 
-    def insert_many_tx(self, tx, args: List[Args | InsertManyParams]) -> int:
+    def insert_many_tx(self, tx, args: List[JobArgs | InsertManyParams]) -> int:
         exec = self.driver.unwrap_executor(tx)
         return exec.job_insert_many(_make_insert_params_many(args))
 
@@ -257,7 +284,6 @@ def _check_advisory_lock_prefix_bounds(
     advisory_lock_prefix: Optional[int],
 ) -> Optional[int]:
     if advisory_lock_prefix:
-        print("in_bytes", advisory_lock_prefix.to_bytes(4))
         # We only reserve 4 bytes for the prefix, so make sure the given one
         # properly fits. This will error in case that's not the case.
         advisory_lock_prefix.to_bytes(4)
@@ -265,18 +291,18 @@ def _check_advisory_lock_prefix_bounds(
 
 
 def _make_insert_params(
-    args: Args,
+    args: JobArgs,
     insert_opts: InsertOpts,
     is_insert_many: bool = False,
 ) -> Tuple[JobInsertParams, Optional[UniqueOpts]]:
-    if not hasattr(args, "kind"):
-        raise Exception("args should respond to `kind`")
+    args.kind  # fail fast in case args don't respond to kind
 
     args_json = args.to_json()
-    if args_json is None:
-        raise Exception("args should return non-nil from `to_json`")
+    assert args_json is not None, "args should return non-nil from `to_json`"
 
-    args_insert_opts = getattr(args, "insert_opts", InsertOpts())
+    args_insert_opts = InsertOpts()
+    if isinstance(args, JobArgsWithInsertOpts):
+        args_insert_opts = args.insert_opts()
 
     scheduled_at = insert_opts.scheduled_at or args_insert_opts.scheduled_at
     unique_opts = insert_opts.unique_opts or args_insert_opts.unique_opts
@@ -301,7 +327,7 @@ def _make_insert_params(
 
 
 def _make_insert_params_many(
-    args: List[Args | InsertManyParams],
+    args: List[JobArgs | InsertManyParams],
 ) -> List[JobInsertParams]:
     return [
         _make_insert_params(
