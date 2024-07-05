@@ -45,7 +45,7 @@ class AsyncExecutorProtocol(Protocol):
     async def job_insert(self, insert_params: JobInsertParams) -> Job:
         pass
 
-    async def job_insert_many(self, all_params) -> List[Job]:
+    async def job_insert_many(self, all_params) -> int:
         pass
 
     async def job_get_by_kind_and_unique_properties(
@@ -103,7 +103,7 @@ class ExecutorProtocol(Protocol):
     def job_insert(self, insert_params: JobInsertParams) -> Job:
         pass
 
-    def job_insert_many(self, all_params) -> List[Job]:
+    def job_insert_many(self, all_params) -> int:
         pass
 
     def job_get_by_kind_and_unique_properties(

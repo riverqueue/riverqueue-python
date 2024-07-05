@@ -11,7 +11,6 @@ from typing import (
     AsyncIterator,
     Iterator,
     Optional,
-    List,
     cast,
 )
 
@@ -37,7 +36,7 @@ class AsyncExecutor(AsyncExecutorProtocol):
             ),
         )
 
-    async def job_insert_many(self, all_params) -> List[Job]:
+    async def job_insert_many(self, all_params) -> int:
         raise NotImplementedError("sqlc doesn't implement copy in python yet")
 
     async def job_get_by_kind_and_unique_properties(
@@ -95,7 +94,7 @@ class Executor(ExecutorProtocol):
             ),
         )
 
-    def job_insert_many(self, all_params) -> List[Job]:
+    def job_insert_many(self, all_params) -> int:
         raise NotImplementedError("sqlc doesn't implement copy in python yet")
 
     def job_get_by_kind_and_unique_properties(
