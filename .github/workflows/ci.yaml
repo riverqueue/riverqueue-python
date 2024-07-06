@@ -142,7 +142,7 @@ jobs:
 
     env:
       BIN_PATH: /home/runner/bin
-      SQLC_VERSION: 1.25.0
+      SQLC_VERSION: 1.26.0
 
     steps:
       - name: Checkout
