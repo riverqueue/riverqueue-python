@@ -83,7 +83,7 @@ insert_res = client.insert(
             by_args: True,
             by_period=15*60,
             by_queue: True,
-            by_state: [riverqueue.JOB_STATE_AVAILABLE]
+            by_state: [riverqueue.JobState.AVAILABLE]
         )
     ),
 )
