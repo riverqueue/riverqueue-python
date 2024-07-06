@@ -18,7 +18,7 @@ from riverqueue import (
     UniqueOpts,
 )
 from riverqueue.driver import riversqlalchemy
-from riverqueue.driver.driver_protocol import JobGetByKindAndUniquePropertiesParam
+from riverqueue.driver.riversqlalchemy import dbsqlc
 
 
 class TestAsyncClient:
@@ -40,19 +40,12 @@ class TestAsyncClient:
             yield conn_tx
             await conn_tx.rollback()
 
-    @pytest.fixture
-    @staticmethod
-    def driver(
-        test_tx: sqlalchemy.ext.asyncio.AsyncConnection,
-    ) -> riversqlalchemy.AsyncDriver:
-        return riversqlalchemy.AsyncDriver(test_tx)
-
     @pytest_asyncio.fixture
     @staticmethod
     async def client(
-        driver: riversqlalchemy.AsyncDriver,
+        test_tx: sqlalchemy.ext.asyncio.AsyncConnection,
     ) -> AsyncClient:
-        return AsyncClient(driver)
+        return AsyncClient(riversqlalchemy.AsyncDriver(test_tx))
 
     #
     # tests
@@ -87,26 +80,22 @@ class TestAsyncClient:
         assert insert_res.job
 
     @pytest.mark.asyncio
-    async def test_insert_tx(self, client, driver, engine_async, simple_args, test_tx):
+    async def test_insert_tx(self, client, engine_async, simple_args, test_tx):
         insert_res = await client.insert_tx(test_tx, simple_args)
         assert insert_res.job
 
-        job = await driver.unwrap_executor(
-            test_tx
-        ).job_get_by_kind_and_unique_properties(
-            JobGetByKindAndUniquePropertiesParam(kind=simple_args.kind)
+        job = await dbsqlc.river_job.AsyncQuerier(test_tx).job_get_by_id(
+            id=insert_res.job.id
         )
-        assert job == insert_res.job
+        assert job
 
-        async with engine_async.begin() as conn_tx2:
-            job = await driver.unwrap_executor(
-                conn_tx2
-            ).job_get_by_kind_and_unique_properties(
-                JobGetByKindAndUniquePropertiesParam(kind=simple_args.kind)
+        async with engine_async.begin() as test_tx2:
+            job = await dbsqlc.river_job.AsyncQuerier(test_tx2).job_get_by_id(
+                id=insert_res.job.id
             )
             assert job is None
 
-            await conn_tx2.rollback()
+            await test_tx2.rollback()
 
     @pytest.mark.asyncio
     async def test_insert_with_opts(self, client, simple_args):
@@ -206,13 +195,8 @@ class TestSyncClient:
 
     @pytest.fixture
     @staticmethod
-    def driver(test_tx: sqlalchemy.Connection) -> riversqlalchemy.Driver:
-        return riversqlalchemy.Driver(test_tx)
-
-    @pytest.fixture
-    @staticmethod
-    def client(driver: riversqlalchemy.Driver) -> Client:
-        return Client(driver)
+    def client(test_tx: sqlalchemy.Connection) -> Client:
+        return Client(riversqlalchemy.Driver(test_tx))
 
     #
     # tests; should match with tests for the async client above
@@ -222,24 +206,18 @@ class TestSyncClient:
         insert_res = client.insert(simple_args)
         assert insert_res.job
 
-    def test_insert_tx(self, client, driver, engine, simple_args, test_tx):
+    def test_insert_tx(self, client, engine, simple_args, test_tx):
         insert_res = client.insert_tx(test_tx, simple_args)
         assert insert_res.job
 
-        job = driver.unwrap_executor(test_tx).job_get_by_kind_and_unique_properties(
-            JobGetByKindAndUniquePropertiesParam(kind=simple_args.kind)
-        )
-        assert job == insert_res.job
+        job = dbsqlc.river_job.Querier(test_tx).job_get_by_id(id=insert_res.job.id)
+        assert job
 
-        with engine.begin() as conn_tx2:
-            job = driver.unwrap_executor(
-                conn_tx2
-            ).job_get_by_kind_and_unique_properties(
-                JobGetByKindAndUniquePropertiesParam(kind=simple_args.kind)
-            )
+        with engine.begin() as test_tx2:
+            job = dbsqlc.river_job.Querier(test_tx2).job_get_by_id(id=insert_res.job.id)
             assert job is None
 
-            conn_tx2.rollback()
+            test_tx2.rollback()
 
     def test_insert_with_opts(self, client, simple_args):
         insert_opts = InsertOpts(queue="high_priority", unique_opts=None)
