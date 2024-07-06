@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
+import re
 from typing import (
     Any,
     Awaitable,
@@ -320,7 +321,7 @@ def _make_insert_params(
         queue=insert_opts.queue or args_insert_opts.queue or QUEUE_DEFAULT,
         scheduled_at=scheduled_at and scheduled_at.astimezone(timezone.utc),
         state="scheduled" if scheduled_at else "available",
-        tags=insert_opts.tags or args_insert_opts.tags or [],
+        tags=_validate_tags(insert_opts.tags or args_insert_opts.tags or []),
     )
 
     return insert_params, unique_opts
@@ -348,3 +349,14 @@ def _truncate_time(time, interval_seconds) -> datetime:
 def _uint64_to_int64(uint64):
     # Packs a uint64 then unpacks to int64 to fit within Postgres bigint
     return (uint64 + (1 << 63)) % (1 << 64) - (1 << 63)
+
+
+tag_re = re.compile("\A[\w][\w\-]+[\w]\Z")
+
+
+def _validate_tags(tags: list[str]) -> list[str]:
+    for tag in tags:
+        assert (
+            len(tag) <= 255 and tag_re.match(tag)
+        ), f"tags should be less than 255 characters in length and match regex {tag_re.pattern}"
+    return tags
