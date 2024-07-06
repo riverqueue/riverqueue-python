@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2024-07-06
+
 ### Changed
 
 - Use real enum for `JobState` instead of many constant. This is a breaking change, but the job state constants have existed for only a short time. [PR #25](https://github.com/riverqueue/riverqueue-python/pull/25).
+- `riverqueue.Job`'s properties are now fully defined and typed. [PR #26](https://github.com/riverqueue/riverqueue-python/pull/26).
 
 ## [0.4.0] - 2024-07-05
 
