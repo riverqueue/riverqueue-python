@@ -39,6 +39,11 @@ CREATE TABLE river_job(
 SELECT *
 FROM river_job;
 
+-- name: JobGetByID :one
+SELECT *
+FROM river_job
+WHERE id = @id;
+
 -- name: JobGetByKindAndUniqueProperties :one
 SELECT *
 FROM river_job

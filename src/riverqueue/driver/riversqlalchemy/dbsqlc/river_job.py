@@ -18,6 +18,13 @@ FROM river_job
 """
 
 
+JOB_GET_BY_ID = """-- name: job_get_by_id \\:one
+SELECT id, args, attempt, attempted_at, attempted_by, created_at, errors, finalized_at, kind, max_attempts, metadata, priority, queue, state, scheduled_at, tags
+FROM river_job
+WHERE id = :p1
+"""
+
+
 JOB_GET_BY_KIND_AND_UNIQUE_PROPERTIES = """-- name: job_get_by_kind_and_unique_properties \\:one
 SELECT id, args, attempt, attempted_at, attempted_by, created_at, errors, finalized_at, kind, max_attempts, metadata, priority, queue, state, scheduled_at, tags
 FROM river_job
@@ -153,6 +160,29 @@ class Querier:
                 tags=row[15],
             )
 
+    def job_get_by_id(self, *, id: int) -> Optional[models.RiverJob]:
+        row = self._conn.execute(sqlalchemy.text(JOB_GET_BY_ID), {"p1": id}).first()
+        if row is None:
+            return None
+        return models.RiverJob(
+            id=row[0],
+            args=row[1],
+            attempt=row[2],
+            attempted_at=row[3],
+            attempted_by=row[4],
+            created_at=row[5],
+            errors=row[6],
+            finalized_at=row[7],
+            kind=row[8],
+            max_attempts=row[9],
+            metadata=row[10],
+            priority=row[11],
+            queue=row[12],
+            state=row[13],
+            scheduled_at=row[14],
+            tags=row[15],
+        )
+
     def job_get_by_kind_and_unique_properties(self, arg: JobGetByKindAndUniquePropertiesParams) -> Optional[models.RiverJob]:
         row = self._conn.execute(sqlalchemy.text(JOB_GET_BY_KIND_AND_UNIQUE_PROPERTIES), {
             "p1": arg.kind,
@@ -262,6 +292,29 @@ class AsyncQuerier:
                 scheduled_at=row[14],
                 tags=row[15],
             )
+
+    async def job_get_by_id(self, *, id: int) -> Optional[models.RiverJob]:
+        row = (await self._conn.execute(sqlalchemy.text(JOB_GET_BY_ID), {"p1": id})).first()
+        if row is None:
+            return None
+        return models.RiverJob(
+            id=row[0],
+            args=row[1],
+            attempt=row[2],
+            attempted_at=row[3],
+            attempted_by=row[4],
+            created_at=row[5],
+            errors=row[6],
+            finalized_at=row[7],
+            kind=row[8],
+            max_attempts=row[9],
+            metadata=row[10],
+            priority=row[11],
+            queue=row[12],
+            state=row[13],
+            scheduled_at=row[14],
+            tags=row[15],
+        )
 
     async def job_get_by_kind_and_unique_properties(self, arg: JobGetByKindAndUniquePropertiesParams) -> Optional[models.RiverJob]:
         row = (await self._conn.execute(sqlalchemy.text(JOB_GET_BY_KIND_AND_UNIQUE_PROPERTIES), {
