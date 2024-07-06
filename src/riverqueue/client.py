@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
+from enum import Enum
 import re
 from typing import (
     Any,
@@ -18,23 +19,27 @@ from .driver.driver_protocol import AsyncDriverProtocol, AsyncExecutorProtocol
 from .model import InsertResult
 from .fnv import fnv1_hash
 
-JOB_STATE_AVAILABLE = "available"
-JOB_STATE_CANCELLED = "cancelled"
-JOB_STATE_COMPLETED = "completed"
-JOB_STATE_DISCARDED = "discarded"
-JOB_STATE_RETRYABLE = "retryable"
-JOB_STATE_RUNNING = "running"
-JOB_STATE_SCHEDULED = "scheduled"
 
-MAX_ATTEMPTS_DEFAULT = 25
-PRIORITY_DEFAULT = 1
-QUEUE_DEFAULT = "default"
-UNIQUE_STATES_DEFAULT = [
-    JOB_STATE_AVAILABLE,
-    JOB_STATE_COMPLETED,
-    JOB_STATE_RUNNING,
-    JOB_STATE_RETRYABLE,
-    JOB_STATE_SCHEDULED,
+class JobState(str, Enum):
+    AVAILABLE = "available"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    DISCARDED = "discarded"
+    PENDING = "pending"
+    RETRYABLE = "retryable"
+    RUNNING = "running"
+    SCHEDULED = "scheduled"
+
+
+MAX_ATTEMPTS_DEFAULT: int = 25
+PRIORITY_DEFAULT: int = 1
+QUEUE_DEFAULT: str = "default"
+UNIQUE_STATES_DEFAULT: list[str] = [
+    JobState.AVAILABLE,
+    JobState.COMPLETED,
+    JobState.RUNNING,
+    JobState.RETRYABLE,
+    JobState.SCHEDULED,
 ]
 
 
@@ -351,7 +356,7 @@ def _uint64_to_int64(uint64):
     return (uint64 + (1 << 63)) % (1 << 64) - (1 << 63)
 
 
-tag_re = re.compile("\A[\w][\w\-]+[\w]\Z")
+tag_re = re.compile(r"\A[\w][\w\-]+[\w]\Z")
 
 
 def _validate_tags(tags: list[str]) -> list[str]:
