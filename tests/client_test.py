@@ -259,6 +259,26 @@ def test_insert_to_json_none_error(client):
     assert "args should return non-nil from `to_json`" == str(ex.value)
 
 
+def test_tag_validation(client):
+    client.insert(
+        SimpleArgs(), insert_opts=InsertOpts(tags=["foo", "bar", "baz", "foo-bar-baz"])
+    )
+
+    with pytest.raises(AssertionError) as ex:
+        client.insert(SimpleArgs(), insert_opts=InsertOpts(tags=["commas,bad"]))
+    assert (
+        "tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
+        == str(ex.value)
+    )
+
+    with pytest.raises(AssertionError) as ex:
+        client.insert(SimpleArgs(), insert_opts=InsertOpts(tags=["a" * 256]))
+    assert (
+        "tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
+        == str(ex.value)
+    )
+
+
 def test_check_advisory_lock_prefix_bounds():
     Client(mock_driver, advisory_lock_prefix=123)
 
