@@ -4,12 +4,18 @@
 # source: river_job.sql
 import dataclasses
 import datetime
-from typing import Any, List, Optional
+from typing import Any, AsyncIterator, Iterator, List, Optional
 
 import sqlalchemy
 import sqlalchemy.ext.asyncio
 
 from . import models
+
+
+JOB_GET_ALL = """-- name: job_get_all \\:many
+SELECT id, args, attempt, attempted_at, attempted_by, created_at, errors, finalized_at, kind, max_attempts, metadata, priority, queue, state, scheduled_at, tags
+FROM river_job
+"""
 
 
 JOB_GET_BY_KIND_AND_UNIQUE_PROPERTIES = """-- name: job_get_by_kind_and_unique_properties \\:one
@@ -125,6 +131,28 @@ class Querier:
     def __init__(self, conn: sqlalchemy.engine.Connection):
         self._conn = conn
 
+    def job_get_all(self) -> Iterator[models.RiverJob]:
+        result = self._conn.execute(sqlalchemy.text(JOB_GET_ALL))
+        for row in result:
+            yield models.RiverJob(
+                id=row[0],
+                args=row[1],
+                attempt=row[2],
+                attempted_at=row[3],
+                attempted_by=row[4],
+                created_at=row[5],
+                errors=row[6],
+                finalized_at=row[7],
+                kind=row[8],
+                max_attempts=row[9],
+                metadata=row[10],
+                priority=row[11],
+                queue=row[12],
+                state=row[13],
+                scheduled_at=row[14],
+                tags=row[15],
+            )
+
     def job_get_by_kind_and_unique_properties(self, arg: JobGetByKindAndUniquePropertiesParams) -> Optional[models.RiverJob]:
         row = self._conn.execute(sqlalchemy.text(JOB_GET_BY_KIND_AND_UNIQUE_PROPERTIES), {
             "p1": arg.kind,
@@ -212,6 +240,28 @@ class Querier:
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
+
+    async def job_get_all(self) -> AsyncIterator[models.RiverJob]:
+        result = await self._conn.stream(sqlalchemy.text(JOB_GET_ALL))
+        async for row in result:
+            yield models.RiverJob(
+                id=row[0],
+                args=row[1],
+                attempt=row[2],
+                attempted_at=row[3],
+                attempted_by=row[4],
+                created_at=row[5],
+                errors=row[6],
+                finalized_at=row[7],
+                kind=row[8],
+                max_attempts=row[9],
+                metadata=row[10],
+                priority=row[11],
+                queue=row[12],
+                state=row[13],
+                scheduled_at=row[14],
+                tags=row[15],
+            )
 
     async def job_get_by_kind_and_unique_properties(self, arg: JobGetByKindAndUniquePropertiesParams) -> Optional[models.RiverJob]:
         row = (await self._conn.execute(sqlalchemy.text(JOB_GET_BY_KIND_AND_UNIQUE_PROPERTIES), {
