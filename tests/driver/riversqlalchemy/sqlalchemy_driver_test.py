@@ -1,22 +1,24 @@
 import pytest
 import pytest_asyncio
-from riverqueue.model import JobState
 import sqlalchemy
 import sqlalchemy.ext.asyncio
 from datetime import datetime, timezone
 from typing import AsyncIterator, Iterator
 from unittest.mock import patch
 
-from riverqueue import Client, InsertOpts, UniqueOpts
-from riverqueue.client import (
+from riverqueue import (
     MAX_ATTEMPTS_DEFAULT,
     PRIORITY_DEFAULT,
     QUEUE_DEFAULT,
     AsyncClient,
+    Client,
     InsertManyParams,
+    InsertOpts,
+    JobState,
+    UniqueOpts,
 )
 from riverqueue.driver import riversqlalchemy
-from riverqueue.driver.driver_protocol import GetParams
+from riverqueue.driver.driver_protocol import JobGetByKindAndUniquePropertiesParam
 
 # from tests.conftest import engine_async
 from tests.simple_args import SimpleArgs
@@ -89,14 +91,16 @@ def test_insert_tx_sync(client, driver, engine):
         assert insert_res.job
 
         job = driver.unwrap_executor(conn_tx).job_get_by_kind_and_unique_properties(
-            GetParams(kind=args.kind)
+            JobGetByKindAndUniquePropertiesParam(kind=args.kind)
         )
         assert job == insert_res.job
 
         with engine.begin() as conn_tx2:
             job = driver.unwrap_executor(
                 conn_tx2
-            ).job_get_by_kind_and_unique_properties(GetParams(kind=args.kind))
+            ).job_get_by_kind_and_unique_properties(
+                JobGetByKindAndUniquePropertiesParam(kind=args.kind)
+            )
             assert job is None
 
         conn_tx.rollback()
@@ -111,13 +115,17 @@ async def test_insert_tx_async(client_async, driver_async, engine_async):
 
         job = await driver_async.unwrap_executor(
             conn_tx
-        ).job_get_by_kind_and_unique_properties(GetParams(kind=args.kind))
+        ).job_get_by_kind_and_unique_properties(
+            JobGetByKindAndUniquePropertiesParam(kind=args.kind)
+        )
         assert job == insert_res.job
 
         async with engine_async.begin() as conn_tx2:
             job = await driver_async.unwrap_executor(
                 conn_tx2
-            ).job_get_by_kind_and_unique_properties(GetParams(kind=args.kind))
+            ).job_get_by_kind_and_unique_properties(
+                JobGetByKindAndUniquePropertiesParam(kind=args.kind)
+            )
             assert job is None
 
         await conn_tx.rollback()

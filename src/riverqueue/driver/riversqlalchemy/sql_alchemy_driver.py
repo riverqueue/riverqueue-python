@@ -8,6 +8,7 @@ from sqlalchemy import Engine
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from typing import (
+    Any,
     AsyncGenerator,
     AsyncIterator,
     Iterator,
@@ -15,8 +16,13 @@ from typing import (
     cast,
 )
 
-from ...driver import DriverProtocol, ExecutorProtocol, GetParams, JobInsertParams
-from ...model import Job, JobState
+from ...driver import (
+    DriverProtocol,
+    ExecutorProtocol,
+    JobGetByKindAndUniquePropertiesParam,
+    JobInsertParams,
+)
+from ...job import AttemptError, Job, JobState
 from .dbsqlc import models, river_job, pg_misc
 
 
@@ -46,7 +52,7 @@ class AsyncExecutor(AsyncExecutorProtocol):
         return len(all_params)
 
     async def job_get_by_kind_and_unique_properties(
-        self, get_params: GetParams
+        self, get_params: JobGetByKindAndUniquePropertiesParam
     ) -> Optional[Job]:
         row = await self.job_querier.job_get_by_kind_and_unique_properties(
             cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
@@ -64,6 +70,12 @@ class AsyncExecutor(AsyncExecutorProtocol):
 
 
 class AsyncDriver(AsyncDriverProtocol):
+    """
+    Client driver for SQL Alchemy.
+
+    This variant is suitable for use with Python's asyncio (asynchronous I/O).
+    """
+
     def __init__(self, conn: AsyncConnection | AsyncEngine):
         assert isinstance(conn, AsyncConnection) or isinstance(conn, AsyncEngine)
 
@@ -105,7 +117,7 @@ class Executor(ExecutorProtocol):
         return len(all_params)
 
     def job_get_by_kind_and_unique_properties(
-        self, get_params: GetParams
+        self, get_params: JobGetByKindAndUniquePropertiesParam
     ) -> Optional[Job]:
         row = self.job_querier.job_get_by_kind_and_unique_properties(
             cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
@@ -123,6 +135,10 @@ class Executor(ExecutorProtocol):
 
 
 class Driver(DriverProtocol):
+    """
+    Client driver for SQL Alchemy.
+    """
+
     def __init__(self, conn: Connection | Engine):
         assert isinstance(conn, Connection) or isinstance(conn, Engine)
 
@@ -178,25 +194,33 @@ def _job_from_row(row: models.RiverJob) -> Job:
     timezone to UTC.
     """
 
+    def attempt_error_from(data: dict[str, Any]) -> AttemptError:
+        return AttemptError(
+            at=data["at"],
+            attempt=data["attempt"],
+            error=data["error"],
+            trace=data["trace"],
+        )
+
+    # Trivial shortcut, but avoids a bunch of ternaries getting line wrapped below.
+    def to_utc(t: datetime) -> datetime:
+        return t.astimezone(timezone.utc)
+
     return Job(
         id=row.id,
         args=row.args,
         attempt=row.attempt,
-        attempted_at=row.attempted_at.astimezone(timezone.utc)
-        if row.attempted_at
-        else None,
+        attempted_at=to_utc(row.attempted_at) if row.attempted_at else None,
         attempted_by=row.attempted_by,
-        created_at=row.created_at.astimezone(timezone.utc),
-        errors=row.errors,
-        finalized_at=row.finalized_at.astimezone(timezone.utc)
-        if row.finalized_at
-        else None,
+        created_at=to_utc(row.created_at),
+        errors=list(map(attempt_error_from, row.errors)) if row.errors else None,
+        finalized_at=to_utc(row.finalized_at) if row.finalized_at else None,
         kind=row.kind,
         max_attempts=row.max_attempts,
         metadata=row.metadata,
         priority=row.priority,
         queue=row.queue,
+        scheduled_at=to_utc(row.scheduled_at),
         state=cast(JobState, row.state),
-        scheduled_at=row.scheduled_at.astimezone(timezone.utc),
         tags=row.tags,
     )
