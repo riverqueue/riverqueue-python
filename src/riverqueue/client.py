@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from enum import Enum
 import re
 from typing import (
     Any,
@@ -16,19 +15,8 @@ from typing import (
 
 from .driver import GetParams, JobInsertParams, DriverProtocol, ExecutorProtocol
 from .driver.driver_protocol import AsyncDriverProtocol, AsyncExecutorProtocol
-from .model import InsertResult
+from .model import InsertResult, JobState
 from .fnv import fnv1_hash
-
-
-class JobState(str, Enum):
-    AVAILABLE = "available"
-    CANCELLED = "cancelled"
-    COMPLETED = "completed"
-    DISCARDED = "discarded"
-    PENDING = "pending"
-    RETRYABLE = "retryable"
-    RUNNING = "running"
-    SCHEDULED = "scheduled"
 
 
 MAX_ATTEMPTS_DEFAULT: int = 25

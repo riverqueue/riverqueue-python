@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+from riverqueue.model import JobState
 import sqlalchemy
 import sqlalchemy.ext.asyncio
 from datetime import datetime, timezone
@@ -7,7 +8,13 @@ from typing import AsyncIterator, Iterator
 from unittest.mock import patch
 
 from riverqueue import Client, InsertOpts, UniqueOpts
-from riverqueue.client import AsyncClient, InsertManyParams
+from riverqueue.client import (
+    MAX_ATTEMPTS_DEFAULT,
+    PRIORITY_DEFAULT,
+    QUEUE_DEFAULT,
+    AsyncClient,
+    InsertManyParams,
+)
 from riverqueue.driver import riversqlalchemy
 from riverqueue.driver.driver_protocol import GetParams
 
@@ -43,6 +50,25 @@ async def client_async(
     driver_async: riversqlalchemy.AsyncDriver,
 ) -> AsyncClient:
     return AsyncClient(driver_async)
+
+
+def test_insert_job_from_row(client, driver):
+    insert_res = client.insert(SimpleArgs())
+    job = insert_res.job
+    assert job
+    assert isinstance(job.args, dict)
+    assert job.attempt == 0
+    assert job.attempted_by is None
+    assert job.created_at.tzinfo == timezone.utc
+    assert job.errors is None
+    assert job.kind == "simple"
+    assert job.max_attempts == MAX_ATTEMPTS_DEFAULT
+    assert isinstance(job.metadata, dict)
+    assert job.priority == PRIORITY_DEFAULT
+    assert job.queue == QUEUE_DEFAULT
+    assert job.scheduled_at.tzinfo == timezone.utc
+    assert job.state == JobState.AVAILABLE
+    assert job.tags == []
 
 
 def test_insert_with_only_args_sync(client, driver):

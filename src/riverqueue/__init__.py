@@ -3,7 +3,6 @@ from .client import (
     AsyncClient as AsyncClient,
     JobArgs as JobArgs,
     JobArgsWithInsertOpts as JobArgsWithInsertOpts,
-    JobState as JobState,
     Client as Client,
     InsertManyParams as InsertManyParams,
     InsertOpts as InsertOpts,
@@ -12,4 +11,5 @@ from .client import (
 from .model import (
     InsertResult as InsertResult,
     Job as Job,
+    JobState as JobState,
 )

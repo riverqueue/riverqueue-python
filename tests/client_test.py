@@ -267,14 +267,14 @@ def test_tag_validation(client):
     with pytest.raises(AssertionError) as ex:
         client.insert(SimpleArgs(), insert_opts=InsertOpts(tags=["commas,bad"]))
     assert (
-        "tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
+        r"tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
         == str(ex.value)
     )
 
     with pytest.raises(AssertionError) as ex:
         client.insert(SimpleArgs(), insert_opts=InsertOpts(tags=["a" * 256]))
     assert (
-        "tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
+        r"tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
         == str(ex.value)
     )
 

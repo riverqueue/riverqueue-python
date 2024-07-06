@@ -16,7 +16,7 @@ from typing import (
 )
 
 from ...driver import DriverProtocol, ExecutorProtocol, GetParams, JobInsertParams
-from ...model import Job
+from ...model import Job, JobState
 from .dbsqlc import models, river_job, pg_misc
 
 
@@ -30,11 +30,13 @@ class AsyncExecutor(AsyncExecutorProtocol):
         await self.pg_misc_querier.pg_advisory_xact_lock(key=key)
 
     async def job_insert(self, insert_params: JobInsertParams) -> Job:
-        return cast(
-            Job,
-            await self.job_querier.job_insert_fast(
-                cast(river_job.JobInsertFastParams, insert_params)
-            ),
+        return _job_from_row(
+            cast(  # drop Optional[] because insert always returns a row
+                models.RiverJob,
+                await self.job_querier.job_insert_fast(
+                    cast(river_job.JobInsertFastParams, insert_params)
+                ),
+            )
         )
 
     async def job_insert_many(self, all_params: list[JobInsertParams]) -> int:
@@ -46,12 +48,10 @@ class AsyncExecutor(AsyncExecutorProtocol):
     async def job_get_by_kind_and_unique_properties(
         self, get_params: GetParams
     ) -> Optional[Job]:
-        return cast(
-            Optional[Job],
-            await self.job_querier.job_get_by_kind_and_unique_properties(
-                cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
-            ),
+        row = await self.job_querier.job_get_by_kind_and_unique_properties(
+            cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
         )
+        return _job_from_row(row) if row else None
 
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator:
@@ -91,10 +91,12 @@ class Executor(ExecutorProtocol):
         self.pg_misc_querier.pg_advisory_xact_lock(key=key)
 
     def job_insert(self, insert_params: JobInsertParams) -> Job:
-        return cast(
-            Job,
-            self.job_querier.job_insert_fast(
-                cast(river_job.JobInsertFastParams, insert_params)
+        return _job_from_row(
+            cast(  # drop Optional[] because insert always returns a row
+                models.RiverJob,
+                self.job_querier.job_insert_fast(
+                    cast(river_job.JobInsertFastParams, insert_params)
+                ),
             ),
         )
 
@@ -105,12 +107,10 @@ class Executor(ExecutorProtocol):
     def job_get_by_kind_and_unique_properties(
         self, get_params: GetParams
     ) -> Optional[Job]:
-        return cast(
-            Optional[Job],
-            self.job_querier.job_get_by_kind_and_unique_properties(
-                cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
-            ),
+        row = self.job_querier.job_get_by_kind_and_unique_properties(
+            cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
         )
+        return _job_from_row(row) if row else None
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -169,3 +169,34 @@ def _build_insert_many_params(
         insert_many_params.tags.append(",".join(insert_params.tags))
 
     return insert_many_params
+
+
+def _job_from_row(row: models.RiverJob) -> Job:
+    """
+    Converts an internal sqlc generated row to the top level type, issuing a few
+    minor transformations along the way. Timestamps are changed from local
+    timezone to UTC.
+    """
+
+    return Job(
+        id=row.id,
+        args=row.args,
+        attempt=row.attempt,
+        attempted_at=row.attempted_at.astimezone(timezone.utc)
+        if row.attempted_at
+        else None,
+        attempted_by=row.attempted_by,
+        created_at=row.created_at.astimezone(timezone.utc),
+        errors=row.errors,
+        finalized_at=row.finalized_at.astimezone(timezone.utc)
+        if row.finalized_at
+        else None,
+        kind=row.kind,
+        max_attempts=row.max_attempts,
+        metadata=row.metadata,
+        priority=row.priority,
+        queue=row.queue,
+        state=cast(JobState, row.state),
+        scheduled_at=row.scheduled_at.astimezone(timezone.utc),
+        tags=row.tags,
+    )
