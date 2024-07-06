@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add doc strings for most of the public API. [PR #27](https://github.com/riverqueue/riverqueue-python/pull/27).
+- Add `riverqueue.AttemptError` data class to represent errors on a job row. [PR #27](https://github.com/riverqueue/riverqueue-python/pull/27).
+
 ## [0.5.0] - 2024-07-06
 
 ### Changed

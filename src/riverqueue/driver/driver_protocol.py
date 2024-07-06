@@ -6,11 +6,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterator, List, Optional, Protocol
 
-from ..model import Job
+from ..job import Job
 
 
 @dataclass()
-class GetParams:
+class JobGetByKindAndUniquePropertiesParam:
+    """
+    Parameters for looking up a job by kind and unique properties.
+    """
+
     kind: str
     by_args: Optional[bool] = None
     args: Optional[Any] = None
@@ -26,6 +30,11 @@ class GetParams:
 
 @dataclass
 class JobInsertParams:
+    """
+    Insert parameters for a job. This is sent to underlying drivers and is meant
+    for internal use only. Its interface is subject to change.
+    """
+
     kind: str
     args: Any = None
     created_at: Optional[datetime] = None
@@ -40,6 +49,12 @@ class JobInsertParams:
 
 
 class AsyncExecutorProtocol(Protocol):
+    """
+    Protocol for an asyncio executor. An executor wraps a connection pool or
+    transaction and performs the operations required for a client to insert a
+    job.
+    """
+
     async def advisory_lock(self, lock: int) -> None:
         pass
 
@@ -50,7 +65,7 @@ class AsyncExecutorProtocol(Protocol):
         pass
 
     async def job_get_by_kind_and_unique_properties(
-        self, get_params: GetParams
+        self, get_params: JobGetByKindAndUniquePropertiesParam
     ) -> Optional[Job]:
         pass
 
@@ -75,6 +90,11 @@ class AsyncExecutorProtocol(Protocol):
 
 
 class AsyncDriverProtocol(Protocol):
+    """
+    Protocol for an asyncio client driver. A driver acts as a layer of
+    abstraction that wraps another class for a client to work.
+    """
+
     # Even after spending two hours on it, I'm unable to find a return type for
     # this function that MyPy will accept. The only two workable options I found
     # were either (1) removing the return value completely (the implementations
@@ -94,10 +114,20 @@ class AsyncDriverProtocol(Protocol):
         pass
 
     def unwrap_executor(self, tx) -> AsyncExecutorProtocol:
+        """
+        Produces an executor from a transaction.
+        """
+
         pass
 
 
 class ExecutorProtocol(Protocol):
+    """
+    Protocol for a non-asyncio executor. An executor wraps a connection pool or
+    transaction and performs the operations required for a client to insert a
+    job.
+    """
+
     def advisory_lock(self, lock: int) -> None:
         pass
 
@@ -108,7 +138,7 @@ class ExecutorProtocol(Protocol):
         pass
 
     def job_get_by_kind_and_unique_properties(
-        self, get_params: GetParams
+        self, get_params: JobGetByKindAndUniquePropertiesParam
     ) -> Optional[Job]:
         pass
 
@@ -124,6 +154,11 @@ class ExecutorProtocol(Protocol):
 
 
 class DriverProtocol(Protocol):
+    """
+    Protocol for a non-asyncio client driver. A driver acts as a layer of
+    abstraction that wraps another class for a client to work.
+    """
+
     @contextmanager
     def executor(self) -> Iterator[ExecutorProtocol]:
         """
@@ -134,4 +169,8 @@ class DriverProtocol(Protocol):
         pass
 
     def unwrap_executor(self, tx) -> ExecutorProtocol:
+        """
+        Produces an executor from a transaction.
+        """
+
         pass
