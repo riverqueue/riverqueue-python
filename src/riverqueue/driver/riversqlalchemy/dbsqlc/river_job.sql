@@ -35,6 +35,10 @@ CREATE TABLE river_job(
     CONSTRAINT kind_length CHECK (char_length(kind) > 0 AND char_length(kind) < 128)
 );
 
+-- name: JobGetAll :many
+SELECT *
+FROM river_job;
+
 -- name: JobGetByKindAndUniqueProperties :one
 SELECT *
 FROM river_job

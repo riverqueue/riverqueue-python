@@ -8,8 +8,6 @@ from riverqueue import Client, InsertOpts, UniqueOpts
 from riverqueue.driver import DriverProtocol, ExecutorProtocol
 import sqlalchemy
 
-from tests.simple_args import SimpleArgs
-
 
 @pytest.fixture
 def mock_driver() -> DriverProtocol:
@@ -38,17 +36,17 @@ def client(mock_driver) -> Client:
     return Client(mock_driver)
 
 
-def test_insert_with_only_args(client, mock_exec):
+def test_insert_with_only_args(client, mock_exec, simple_args):
     mock_exec.job_get_by_kind_and_unique_properties.return_value = None
     mock_exec.job_insert.return_value = "job_row"
 
-    insert_res = client.insert(SimpleArgs())
+    insert_res = client.insert(simple_args)
 
     mock_exec.job_insert.assert_called_once()
     assert insert_res.job == "job_row"
 
 
-def test_insert_tx(mock_driver, client):
+def test_insert_tx(mock_driver, client, simple_args):
     mock_exec = MagicMock(spec=ExecutorProtocol)
     mock_exec.job_get_by_kind_and_unique_properties.return_value = None
     mock_exec.job_insert.return_value = "job_row"
@@ -61,17 +59,17 @@ def test_insert_tx(mock_driver, client):
 
     mock_driver.unwrap_executor.side_effect = mock_unwrap_executor
 
-    insert_res = client.insert_tx(mock_tx, SimpleArgs())
+    insert_res = client.insert_tx(mock_tx, simple_args)
 
     mock_exec.job_insert.assert_called_once()
     assert insert_res.job == "job_row"
 
 
-def test_insert_with_insert_opts_from_args(client, mock_exec):
+def test_insert_with_insert_opts_from_args(client, mock_exec, simple_args):
     mock_exec.job_insert.return_value = "job_row"
 
     insert_res = client.insert(
-        SimpleArgs(),
+        simple_args,
         insert_opts=InsertOpts(
             max_attempts=23, priority=2, queue="job_custom_queue", tags=["job_custom"]
         ),
@@ -121,7 +119,7 @@ def test_insert_with_insert_opts_from_job(client, mock_exec):
     assert insert_args.tags == ["job_custom"]
 
 
-def test_insert_with_insert_opts_precedence(client, mock_exec):
+def test_insert_with_insert_opts_precedence(client, mock_exec, simple_args):
     @dataclass
     class MyArgs:
         kind = "my_args"
@@ -142,7 +140,7 @@ def test_insert_with_insert_opts_precedence(client, mock_exec):
     mock_exec.job_insert.return_value = "job_row"
 
     insert_res = client.insert(
-        SimpleArgs(),
+        simple_args,
         insert_opts=InsertOpts(
             max_attempts=17, priority=3, queue="my_queue", tags=["custom"]
         ),
@@ -158,13 +156,13 @@ def test_insert_with_insert_opts_precedence(client, mock_exec):
     assert insert_args.tags == ["custom"]
 
 
-def test_insert_with_unique_opts_by_args(client, mock_exec):
+def test_insert_with_unique_opts_by_args(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_args=True))
 
     mock_exec.job_get_by_kind_and_unique_properties.return_value = None
     mock_exec.job_insert.return_value = "job_row"
 
-    insert_res = client.insert(SimpleArgs(), insert_opts=insert_opts)
+    insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
     mock_exec.job_insert.assert_called_once()
     assert insert_res.job == "job_row"
@@ -175,7 +173,9 @@ def test_insert_with_unique_opts_by_args(client, mock_exec):
 
 
 @patch("datetime.datetime")
-def test_insert_with_unique_opts_by_period(mock_datetime, client, mock_exec):
+def test_insert_with_unique_opts_by_period(
+    mock_datetime, client, mock_exec, simple_args
+):
     mock_datetime.now.return_value = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
 
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_period=900))
@@ -183,7 +183,7 @@ def test_insert_with_unique_opts_by_period(mock_datetime, client, mock_exec):
     mock_exec.job_get_by_kind_and_unique_properties.return_value = None
     mock_exec.job_insert.return_value = "job_row"
 
-    insert_res = client.insert(SimpleArgs(), insert_opts=insert_opts)
+    insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
     mock_exec.job_insert.assert_called_once()
     assert insert_res.job == "job_row"
@@ -193,13 +193,13 @@ def test_insert_with_unique_opts_by_period(mock_datetime, client, mock_exec):
     assert call_args.kind == "simple"
 
 
-def test_insert_with_unique_opts_by_queue(client, mock_exec):
+def test_insert_with_unique_opts_by_queue(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_queue=True))
 
     mock_exec.job_get_by_kind_and_unique_properties.return_value = None
     mock_exec.job_insert.return_value = "job_row"
 
-    insert_res = client.insert(SimpleArgs(), insert_opts=insert_opts)
+    insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
     mock_exec.job_insert.assert_called_once()
     assert insert_res.job == "job_row"
@@ -209,13 +209,13 @@ def test_insert_with_unique_opts_by_queue(client, mock_exec):
     assert call_args.kind == "simple"
 
 
-def test_insert_with_unique_opts_by_state(client, mock_exec):
+def test_insert_with_unique_opts_by_state(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_state=["available", "running"]))
 
     mock_exec.job_get_by_kind_and_unique_properties.return_value = None
     mock_exec.job_insert.return_value = "job_row"
 
-    insert_res = client.insert(SimpleArgs(), insert_opts=insert_opts)
+    insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
     mock_exec.job_insert.assert_called_once()
     assert insert_res.job == "job_row"
@@ -259,20 +259,20 @@ def test_insert_to_json_none_error(client):
     assert "args should return non-nil from `to_json`" == str(ex.value)
 
 
-def test_tag_validation(client):
+def test_tag_validation(client, simple_args):
     client.insert(
-        SimpleArgs(), insert_opts=InsertOpts(tags=["foo", "bar", "baz", "foo-bar-baz"])
+        simple_args, insert_opts=InsertOpts(tags=["foo", "bar", "baz", "foo-bar-baz"])
     )
 
     with pytest.raises(AssertionError) as ex:
-        client.insert(SimpleArgs(), insert_opts=InsertOpts(tags=["commas,bad"]))
+        client.insert(simple_args, insert_opts=InsertOpts(tags=["commas,bad"]))
     assert (
         r"tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
         == str(ex.value)
     )
 
     with pytest.raises(AssertionError) as ex:
-        client.insert(SimpleArgs(), insert_opts=InsertOpts(tags=["a" * 256]))
+        client.insert(simple_args, insert_opts=InsertOpts(tags=["a" * 256]))
     assert (
         r"tags should be less than 255 characters in length and match regex \A[\w][\w\-]+[\w]\Z"
         == str(ex.value)
