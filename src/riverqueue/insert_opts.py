@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, Optional
 
+from riverqueue.job import JobState
+
 
 @dataclass
 class InsertOpts:
@@ -119,7 +121,7 @@ class UniqueOpts:
     enabled, uniqueness will be enforced for a kind across all queues.
     """
 
-    by_state: Optional[list[str]] = None
+    by_state: Optional[list[JobState]] = None
     """
     Indicates that uniqueness should be enforced across any of the states in
     the given set. For example, if the given states were `(scheduled,
