@@ -104,3 +104,36 @@ INSERT INTO river_job(
     -- Had trouble getting multi-dimensional arrays to play nicely with sqlc,
     -- but it might be possible. For now, join tags into a single string.
     string_to_array(unnest(@tags::text[]), ',');
+
+-- name: JobInsertFull :one
+INSERT INTO river_job(
+    args,
+    attempt,
+    attempted_at,
+    created_at,
+    errors,
+    finalized_at,
+    kind,
+    max_attempts,
+    metadata,
+    priority,
+    queue,
+    scheduled_at,
+    state,
+    tags
+) VALUES (
+    @args::jsonb,
+    coalesce(@attempt::smallint, 0),
+    @attempted_at,
+    coalesce(sqlc.narg('created_at')::timestamptz, now()),
+    @errors::jsonb[],
+    @finalized_at,
+    @kind::text,
+    @max_attempts::smallint,
+    coalesce(@metadata::jsonb, '{}'),
+    @priority::smallint,
+    @queue::text,
+    coalesce(sqlc.narg('scheduled_at')::timestamptz, now()),
+    @state::river_job_state,
+    coalesce(@tags::varchar(255)[], '{}')
+) RETURNING *;

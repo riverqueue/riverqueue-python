@@ -1,5 +1,7 @@
+import json
 import pytest
 import pytest_asyncio
+from riverqueue.job import AttemptError
 import sqlalchemy
 import sqlalchemy.ext.asyncio
 from datetime import datetime, timezone
@@ -52,7 +54,7 @@ class TestAsyncClient:
     #
 
     @pytest.mark.asyncio
-    async def test_insert_job_from_row(self, client, simple_args):
+    async def test_insert_job_from_row(self, client, simple_args, test_tx):
         insert_res = await client.insert(simple_args)
         job = insert_res.job
         assert job
@@ -69,6 +71,48 @@ class TestAsyncClient:
         assert job.scheduled_at.tzinfo == timezone.utc
         assert job.state == JobState.AVAILABLE
         assert job.tags == []
+
+        now = datetime.now(timezone.utc)
+
+        job_row = await dbsqlc.river_job.AsyncQuerier(test_tx).job_insert_full(
+            dbsqlc.river_job.JobInsertFullParams(
+                args=json.dumps(dict(foo="args")),
+                attempt=0,
+                attempted_at=None,
+                created_at=datetime.now(),
+                errors=[
+                    AttemptError(
+                        at=now,
+                        attempt=1,
+                        error="message",
+                        trace="trace",
+                    ).to_json(),
+                ],
+                finalized_at=datetime.now(),
+                kind="custom_kind",
+                max_attempts=MAX_ATTEMPTS_DEFAULT,
+                metadata=json.dumps(dict(foo="metadata")),
+                priority=PRIORITY_DEFAULT,
+                queue=QUEUE_DEFAULT,
+                scheduled_at=datetime.now(),
+                state=JobState.COMPLETED,
+                tags=[],
+            )
+        )
+
+        job = riversqlalchemy.sql_alchemy_driver.job_from_row(job_row)
+        assert job
+        assert job.args == dict(foo="args")
+        assert job.errors == [
+            AttemptError(
+                at=now,
+                attempt=1,
+                error="message",
+                trace="trace",
+            )
+        ]
+        assert job.finalized_at.tzinfo == timezone.utc
+        assert job.metadata == dict(foo="metadata")
 
     #
     # tests below this line should match what are in the sync client tests below

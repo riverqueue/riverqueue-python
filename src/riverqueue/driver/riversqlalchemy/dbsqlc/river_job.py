@@ -134,6 +134,59 @@ class JobInsertFastManyParams:
     tags: List[str]
 
 
+JOB_INSERT_FULL = """-- name: job_insert_full \\:one
+INSERT INTO river_job(
+    args,
+    attempt,
+    attempted_at,
+    created_at,
+    errors,
+    finalized_at,
+    kind,
+    max_attempts,
+    metadata,
+    priority,
+    queue,
+    scheduled_at,
+    state,
+    tags
+) VALUES (
+    :p1\\:\\:jsonb,
+    coalesce(:p2\\:\\:smallint, 0),
+    :p3,
+    coalesce(:p4\\:\\:timestamptz, now()),
+    :p5\\:\\:jsonb[],
+    :p6,
+    :p7\\:\\:text,
+    :p8\\:\\:smallint,
+    coalesce(:p9\\:\\:jsonb, '{}'),
+    :p10\\:\\:smallint,
+    :p11\\:\\:text,
+    coalesce(:p12\\:\\:timestamptz, now()),
+    :p13\\:\\:river_job_state,
+    coalesce(:p14\\:\\:varchar(255)[], '{}')
+) RETURNING id, args, attempt, attempted_at, attempted_by, created_at, errors, finalized_at, kind, max_attempts, metadata, priority, queue, state, scheduled_at, tags
+"""
+
+
+@dataclasses.dataclass()
+class JobInsertFullParams:
+    args: Any
+    attempt: int
+    attempted_at: Optional[datetime.datetime]
+    created_at: Optional[datetime.datetime]
+    errors: List[Any]
+    finalized_at: Optional[datetime.datetime]
+    kind: str
+    max_attempts: int
+    metadata: Any
+    priority: int
+    queue: str
+    scheduled_at: Optional[datetime.datetime]
+    state: models.RiverJobState
+    tags: List[str]
+
+
 class Querier:
     def __init__(self, conn: sqlalchemy.engine.Connection):
         self._conn = conn
@@ -265,6 +318,44 @@ class Querier:
             "p9": arg.tags,
         })
         return result.rowcount
+
+    def job_insert_full(self, arg: JobInsertFullParams) -> Optional[models.RiverJob]:
+        row = self._conn.execute(sqlalchemy.text(JOB_INSERT_FULL), {
+            "p1": arg.args,
+            "p2": arg.attempt,
+            "p3": arg.attempted_at,
+            "p4": arg.created_at,
+            "p5": arg.errors,
+            "p6": arg.finalized_at,
+            "p7": arg.kind,
+            "p8": arg.max_attempts,
+            "p9": arg.metadata,
+            "p10": arg.priority,
+            "p11": arg.queue,
+            "p12": arg.scheduled_at,
+            "p13": arg.state,
+            "p14": arg.tags,
+        }).first()
+        if row is None:
+            return None
+        return models.RiverJob(
+            id=row[0],
+            args=row[1],
+            attempt=row[2],
+            attempted_at=row[3],
+            attempted_by=row[4],
+            created_at=row[5],
+            errors=row[6],
+            finalized_at=row[7],
+            kind=row[8],
+            max_attempts=row[9],
+            metadata=row[10],
+            priority=row[11],
+            queue=row[12],
+            state=row[13],
+            scheduled_at=row[14],
+            tags=row[15],
+        )
 
 
 class AsyncQuerier:
@@ -398,3 +489,41 @@ class AsyncQuerier:
             "p9": arg.tags,
         })
         return result.rowcount
+
+    async def job_insert_full(self, arg: JobInsertFullParams) -> Optional[models.RiverJob]:
+        row = (await self._conn.execute(sqlalchemy.text(JOB_INSERT_FULL), {
+            "p1": arg.args,
+            "p2": arg.attempt,
+            "p3": arg.attempted_at,
+            "p4": arg.created_at,
+            "p5": arg.errors,
+            "p6": arg.finalized_at,
+            "p7": arg.kind,
+            "p8": arg.max_attempts,
+            "p9": arg.metadata,
+            "p10": arg.priority,
+            "p11": arg.queue,
+            "p12": arg.scheduled_at,
+            "p13": arg.state,
+            "p14": arg.tags,
+        })).first()
+        if row is None:
+            return None
+        return models.RiverJob(
+            id=row[0],
+            args=row[1],
+            attempt=row[2],
+            attempted_at=row[3],
+            attempted_by=row[4],
+            created_at=row[5],
+            errors=row[6],
+            finalized_at=row[7],
+            kind=row[8],
+            max_attempts=row[9],
+            metadata=row[10],
+            priority=row[11],
+            queue=row[12],
+            state=row[13],
+            scheduled_at=row[14],
+            tags=row[15],
+        )

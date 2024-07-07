@@ -8,7 +8,6 @@ from sqlalchemy import Engine
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from typing import (
-    Any,
     AsyncGenerator,
     AsyncIterator,
     Iterator,
@@ -36,7 +35,7 @@ class AsyncExecutor(AsyncExecutorProtocol):
         await self.pg_misc_querier.pg_advisory_xact_lock(key=key)
 
     async def job_insert(self, insert_params: JobInsertParams) -> Job:
-        return _job_from_row(
+        return job_from_row(
             cast(  # drop Optional[] because insert always returns a row
                 models.RiverJob,
                 await self.job_querier.job_insert_fast(
@@ -57,7 +56,7 @@ class AsyncExecutor(AsyncExecutorProtocol):
         row = await self.job_querier.job_get_by_kind_and_unique_properties(
             cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
         )
-        return _job_from_row(row) if row else None
+        return job_from_row(row) if row else None
 
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator:
@@ -103,7 +102,7 @@ class Executor(ExecutorProtocol):
         self.pg_misc_querier.pg_advisory_xact_lock(key=key)
 
     def job_insert(self, insert_params: JobInsertParams) -> Job:
-        return _job_from_row(
+        return job_from_row(
             cast(  # drop Optional[] because insert always returns a row
                 models.RiverJob,
                 self.job_querier.job_insert_fast(
@@ -122,7 +121,7 @@ class Executor(ExecutorProtocol):
         row = self.job_querier.job_get_by_kind_and_unique_properties(
             cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
         )
-        return _job_from_row(row) if row else None
+        return job_from_row(row) if row else None
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -187,20 +186,12 @@ def _build_insert_many_params(
     return insert_many_params
 
 
-def _job_from_row(row: models.RiverJob) -> Job:
+def job_from_row(row: models.RiverJob) -> Job:
     """
     Converts an internal sqlc generated row to the top level type, issuing a few
     minor transformations along the way. Timestamps are changed from local
     timezone to UTC.
     """
-
-    def attempt_error_from(data: dict[str, Any]) -> AttemptError:
-        return AttemptError(
-            at=data["at"],
-            attempt=data["attempt"],
-            error=data["error"],
-            trace=data["trace"],
-        )
 
     # Trivial shortcut, but avoids a bunch of ternaries getting line wrapped below.
     def to_utc(t: datetime) -> datetime:
@@ -213,7 +204,7 @@ def _job_from_row(row: models.RiverJob) -> Job:
         attempted_at=to_utc(row.attempted_at) if row.attempted_at else None,
         attempted_by=row.attempted_by,
         created_at=to_utc(row.created_at),
-        errors=list(map(attempt_error_from, row.errors)) if row.errors else None,
+        errors=list(map(AttemptError.from_dict, row.errors)) if row.errors else None,
         finalized_at=to_utc(row.finalized_at) if row.finalized_at else None,
         kind=row.kind,
         max_attempts=row.max_attempts,
