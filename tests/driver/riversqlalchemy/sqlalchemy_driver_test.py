@@ -36,7 +36,16 @@ class TestAsyncClient:
         async with engine_async.connect() as conn_tx:
             # Force SQLAlchemy to open a transaction.
             #
-            # See explanatory comment in `test_tx()` above.
+            # SQLAlchemy seems to be designed to operate as surprisingly as
+            # possible. Invoking `begin()` doesn't actually start a transaction.
+            # Instead, it only does so lazily when a command is first issued. This
+            # can be a big problem for our internal code, because when it wants to
+            # start a transaction of its own to do say, a uniqueness check, unless
+            # another SQL command has already executed it'll accidentally start a
+            # top-level transaction instead of one in a test transaction that'll be
+            # rolled back, and cause our tests to commit test jobs. So to work
+            # around that, we make sure to fire an initial command, thereby forcing
+            # a transaction to begin. Absolutely terrible design.
             await conn_tx.execute(sqlalchemy.text("SELECT 1"))
 
             yield conn_tx
@@ -221,16 +230,7 @@ class TestSyncClient:
         with engine.connect() as conn_tx:
             # Force SQLAlchemy to open a transaction.
             #
-            # SQLAlchemy seems to be designed to operate as surprisingly as
-            # possible. Invoking `begin()` doesn't actually start a transaction.
-            # Instead, it only does so lazily when a command is first issued. This
-            # can be a big problem for our internal code, because when it wants to
-            # start a transaction of its own to do say, a uniqueness check, unless
-            # another SQL command has already executed it'll accidentally start a
-            # top-level transaction instead of one in a test transaction that'll be
-            # rolled back, and cause our tests to commit test jobs. So to work
-            # around that, we make sure to fire an initial command, thereby forcing
-            # a transaction to begin. Absolutely terrible design.
+            # See explanatory comment in `test_tx()` above.
             conn_tx.execute(sqlalchemy.text("SELECT 1"))
 
             yield conn_tx
