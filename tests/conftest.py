@@ -83,7 +83,7 @@ def simple_args(request: pytest.FixtureRequest):
     return SimpleArgs(test_name=request.node.name)
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="session")
 def check_leftover_jobs(engine) -> Iterator[None]:
     """
     Autorunning fixture that checks for leftover jobs after each test case. I
