@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-import datetime
+from datetime import datetime, timezone
 from enum import Enum
+import json
 from typing import Any, Optional
 
 
@@ -106,7 +107,7 @@ class Job:
     if it's either snoozed or errors.
     """
 
-    attempted_at: Optional[datetime.datetime]
+    attempted_at: Optional[datetime]
     """
     The time that the job was last worked. Starts out as `nil` on a new insert.
     """
@@ -120,7 +121,7 @@ class Job:
     time when it starts up.
     """
 
-    created_at: datetime.datetime
+    created_at: datetime
     """
     When the job record was created.
     """
@@ -131,7 +132,7 @@ class Job:
     Ordered from earliest error to the latest error.
     """
 
-    finalized_at: Optional[datetime.datetime]
+    finalized_at: Optional[datetime]
     """
     The time at which the job was "finalized", meaning it was either completed
     successfully or errored for the last time such that it'll no longer be
@@ -170,7 +171,7 @@ class Job:
     independently and be used to isolate jobs.
     """
 
-    scheduled_at: datetime.datetime
+    scheduled_at: datetime
     """
     When the job is scheduled to become available to be worked. Jobs default to
     running immediately, but may be scheduled for the future when they're
@@ -199,7 +200,7 @@ class AttemptError:
     that occurred.
     """
 
-    at: datetime.datetime
+    at: datetime
     """
     The time at which the error occurred.
     """
@@ -221,3 +222,24 @@ class AttemptError:
     Contains a stack trace from a job that panicked. The trace is produced by
     invoking `debug.Trace()` in Go.
     """
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "AttemptError":
+        return AttemptError(
+            at=datetime.fromisoformat(data["at"]),
+            attempt=data["attempt"],
+            error=data["error"],
+            trace=data["trace"],
+        )
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "at": self.at.astimezone(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "attempt": self.attempt,
+                "error": self.error,
+                "trace": self.trace,
+            }
+        )
