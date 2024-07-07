@@ -8,6 +8,7 @@ from typing import (
     Tuple,
     List,
     Callable,
+    cast,
     runtime_checkable,
 )
 
@@ -644,7 +645,7 @@ def _build_unique_get_params_and_lock_key(
     if unique_opts.by_state:
         any_unique_opts = True
         get_params.by_state = True
-        get_params.state = unique_opts.by_state
+        get_params.state = cast(list[str], unique_opts.by_state)
         lock_str += f"&state={','.join(unique_opts.by_state)}"
     else:
         get_params.state = UNIQUE_STATES_DEFAULT

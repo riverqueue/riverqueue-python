@@ -180,7 +180,7 @@ class TestAsyncClient:
     @pytest.mark.asyncio
     async def test_insert_with_unique_opts_by_state(self, client, simple_args):
         insert_opts = InsertOpts(
-            unique_opts=UniqueOpts(by_state=["available", "running"])
+            unique_opts=UniqueOpts(by_state=[JobState.AVAILABLE, JobState.RUNNING])
         )
         insert_res = await client.insert(simple_args, insert_opts=insert_opts)
         assert insert_res.job
@@ -299,7 +299,7 @@ class TestSyncClient:
 
     def test_insert_with_unique_opts_by_state(self, client, simple_args):
         insert_opts = InsertOpts(
-            unique_opts=UniqueOpts(by_state=["available", "running"])
+            unique_opts=UniqueOpts(by_state=[JobState.AVAILABLE, JobState.RUNNING])
         )
         insert_res = client.insert(simple_args, insert_opts=insert_opts)
         assert insert_res.job
