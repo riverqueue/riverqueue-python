@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2024-07-08
+
+### Fixed
+
+- Various Python syntax fixes in README examples. [PR #34](https://github.com/riverqueue/riverqueue-python/pull/34).
+
 ## [0.6.2] - 2024-07-06
 
 ### Changed
