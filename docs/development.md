@@ -51,7 +51,7 @@ $ rye lint
 ## Run type check (Mypy)
 
 ```shell
-$ make typecheck
+$ make type-check
 ```
 
 ## Format code

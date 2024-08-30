@@ -64,6 +64,11 @@ class AsyncExecutorProtocol(Protocol):
     async def job_insert_many(self, all_params) -> int:
         pass
 
+    async def job_insert_unique(
+        self, insert_params: JobInsertParams, unique_key: bytes
+    ) -> tuple[Job, bool]:
+        pass
+
     async def job_get_by_kind_and_unique_properties(
         self, get_params: JobGetByKindAndUniquePropertiesParam
     ) -> Optional[Job]:
@@ -135,6 +140,11 @@ class ExecutorProtocol(Protocol):
         pass
 
     def job_insert_many(self, all_params) -> int:
+        pass
+
+    def job_insert_unique(
+        self, insert_params: JobInsertParams, unique_key: bytes
+    ) -> tuple[Job, bool]:
         pass
 
     def job_get_by_kind_and_unique_properties(
