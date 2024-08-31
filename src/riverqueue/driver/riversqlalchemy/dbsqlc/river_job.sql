@@ -26,6 +26,8 @@ CREATE TABLE river_job(
     state river_job_state NOT NULL DEFAULT 'available' ::river_job_state,
     scheduled_at timestamptz NOT NULL DEFAULT NOW(),
     tags varchar(255)[] NOT NULL DEFAULT '{}' ::varchar(255)[],
+    unique_key bytea,
+
     CONSTRAINT finalized_or_finalized_at_null CHECK (
         (finalized_at IS NULL AND state NOT IN ('cancelled', 'completed', 'discarded')) OR
         (finalized_at IS NOT NULL AND state IN ('cancelled', 'completed', 'discarded'))
@@ -80,6 +82,39 @@ INSERT INTO river_job(
     coalesce(@tags::varchar(255)[], '{}')
 ) RETURNING *;
 
+-- name: JobInsertUnique :one
+INSERT INTO river_job(
+    args,
+    created_at,
+    finalized_at,
+    kind,
+    max_attempts,
+    metadata,
+    priority,
+    queue,
+    scheduled_at,
+    state,
+    tags,
+    unique_key
+) VALUES (
+    @args,
+    coalesce(sqlc.narg('created_at')::timestamptz, now()),
+    @finalized_at,
+    @kind,
+    @max_attempts,
+    coalesce(@metadata::jsonb, '{}'),
+    @priority,
+    @queue,
+    coalesce(sqlc.narg('scheduled_at')::timestamptz, now()),
+    @state,
+    coalesce(@tags::varchar(255)[], '{}'),
+    @unique_key
+)
+ON CONFLICT (kind, unique_key) WHERE unique_key IS NOT NULL
+    -- Something needs to be updated for a row to be returned on a conflict.
+    DO UPDATE SET kind = EXCLUDED.kind
+RETURNING *, (xmax != 0) AS unique_skipped_as_duplicate;
+
 -- name: JobInsertFastMany :execrows
 INSERT INTO river_job(
     args,
@@ -120,7 +155,8 @@ INSERT INTO river_job(
     queue,
     scheduled_at,
     state,
-    tags
+    tags,
+    unique_key
 ) VALUES (
     @args::jsonb,
     coalesce(@attempt::smallint, 0),
@@ -135,5 +171,6 @@ INSERT INTO river_job(
     @queue::text,
     coalesce(sqlc.narg('scheduled_at')::timestamptz, now()),
     @state::river_job_state,
-    coalesce(@tags::varchar(255)[], '{}')
+    coalesce(@tags::varchar(255)[], '{}'),
+    @unique_key
 ) RETURNING *;

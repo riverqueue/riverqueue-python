@@ -50,6 +50,19 @@ class AsyncExecutor(AsyncExecutorProtocol):
         )
         return len(all_params)
 
+    async def job_insert_unique(
+        self, insert_params: JobInsertParams, unique_key: bytes
+    ) -> tuple[Job, bool]:
+        insert_unique_params = cast(river_job.JobInsertUniqueParams, insert_params)
+        insert_unique_params.unique_key = memoryview(unique_key)
+
+        res = cast(  # drop Optional[] because insert always returns a row
+            river_job.JobInsertUniqueRow,
+            await self.job_querier.job_insert_unique(insert_unique_params),
+        )
+
+        return job_from_row(res), res.unique_skipped_as_duplicate
+
     async def job_get_by_kind_and_unique_properties(
         self, get_params: JobGetByKindAndUniquePropertiesParam
     ) -> Optional[Job]:
@@ -114,6 +127,19 @@ class Executor(ExecutorProtocol):
     def job_insert_many(self, all_params: list[JobInsertParams]) -> int:
         self.job_querier.job_insert_fast_many(_build_insert_many_params(all_params))
         return len(all_params)
+
+    def job_insert_unique(
+        self, insert_params: JobInsertParams, unique_key: bytes
+    ) -> tuple[Job, bool]:
+        insert_unique_params = cast(river_job.JobInsertUniqueParams, insert_params)
+        insert_unique_params.unique_key = memoryview(unique_key)
+
+        res = cast(  # drop Optional[] because insert always returns a row
+            river_job.JobInsertUniqueRow,
+            self.job_querier.job_insert_unique(insert_unique_params),
+        )
+
+        return job_from_row(res), res.unique_skipped_as_duplicate
 
     def job_get_by_kind_and_unique_properties(
         self, get_params: JobGetByKindAndUniquePropertiesParam
@@ -186,7 +212,7 @@ def _build_insert_many_params(
     return insert_many_params
 
 
-def job_from_row(row: models.RiverJob) -> Job:
+def job_from_row(row: models.RiverJob | river_job.JobInsertUniqueRow) -> Job:
     """
     Converts an internal sqlc generated row to the top level type, issuing a few
     minor transformations along the way. Timestamps are changed from local
@@ -214,4 +240,5 @@ def job_from_row(row: models.RiverJob) -> Job:
         scheduled_at=to_utc(row.scheduled_at),
         state=cast(JobState, row.state),
         tags=row.tags,
+        unique_key=cast(Optional[bytes], row.unique_key),
     )

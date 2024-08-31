@@ -159,16 +159,16 @@ def test_insert_with_insert_opts_precedence(client, mock_exec, simple_args):
 def test_insert_with_unique_opts_by_args(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_args=True))
 
-    mock_exec.job_get_by_kind_and_unique_properties.return_value = None
-    mock_exec.job_insert.return_value = "job_row"
+    # fast path
+    mock_exec.job_insert_unique.return_value = ("job_row", False)
 
     insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_unique.assert_called_once()
     assert insert_res.job == "job_row"
 
     # Check that the UniqueOpts were correctly processed
-    call_args = mock_exec.job_insert.call_args[0][0]
+    call_args = mock_exec.job_insert_unique.call_args[0][0]
     assert call_args.kind == "simple"
 
 
@@ -180,38 +180,39 @@ def test_insert_with_unique_opts_by_period(
 
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_period=900))
 
-    mock_exec.job_get_by_kind_and_unique_properties.return_value = None
-    mock_exec.job_insert.return_value = "job_row"
+    # fast path
+    mock_exec.job_insert_unique.return_value = ("job_row", False)
 
     insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_unique.assert_called_once()
     assert insert_res.job == "job_row"
 
     # Check that the UniqueOpts were correctly processed
-    call_args = mock_exec.job_insert.call_args[0][0]
+    call_args = mock_exec.job_insert_unique.call_args[0][0]
     assert call_args.kind == "simple"
 
 
 def test_insert_with_unique_opts_by_queue(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_queue=True))
 
-    mock_exec.job_get_by_kind_and_unique_properties.return_value = None
-    mock_exec.job_insert.return_value = "job_row"
+    # fast path
+    mock_exec.job_insert_unique.return_value = ("job_row", False)
 
     insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_unique.assert_called_once()
     assert insert_res.job == "job_row"
 
     # Check that the UniqueOpts were correctly processed
-    call_args = mock_exec.job_insert.call_args[0][0]
+    call_args = mock_exec.job_insert_unique.call_args[0][0]
     assert call_args.kind == "simple"
 
 
 def test_insert_with_unique_opts_by_state(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_state=["available", "running"]))
 
+    # slow path
     mock_exec.job_get_by_kind_and_unique_properties.return_value = None
     mock_exec.job_insert.return_value = "job_row"
 
