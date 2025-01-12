@@ -37,3 +37,4 @@ class RiverJob:
     scheduled_at: datetime.datetime
     tags: List[str]
     unique_key: Optional[memoryview]
+    unique_states: Optional[Any]

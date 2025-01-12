@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from riverqueue import Client, InsertOpts, UniqueOpts
+from riverqueue import Client, InsertOpts, JobState, UniqueOpts
+from riverqueue.client import unique_bitmask_from_states
 from riverqueue.driver import DriverProtocol, ExecutorProtocol
 import sqlalchemy
 
@@ -40,19 +41,17 @@ def client(mock_driver) -> Client:
 
 
 def test_insert_with_only_args(client, mock_exec, simple_args):
-    mock_exec.job_get_by_kind_and_unique_properties.return_value = None
-    mock_exec.job_insert.return_value = "job_row"
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(simple_args)
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
 
 def test_insert_tx(mock_driver, client, simple_args):
     mock_exec = MagicMock(spec=ExecutorProtocol)
-    mock_exec.job_get_by_kind_and_unique_properties.return_value = None
-    mock_exec.job_insert.return_value = "job_row"
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     mock_tx = MagicMock(spec=sqlalchemy.Transaction)
 
@@ -64,12 +63,12 @@ def test_insert_tx(mock_driver, client, simple_args):
 
     insert_res = client.insert_tx(mock_tx, simple_args)
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
 
 def test_insert_with_insert_opts_from_args(client, mock_exec, simple_args):
-    mock_exec.job_insert.return_value = "job_row"
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(
         simple_args,
@@ -78,10 +77,12 @@ def test_insert_with_insert_opts_from_args(client, mock_exec, simple_args):
         ),
     )
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
-    insert_args = mock_exec.job_insert.call_args[0][0]
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_args = call_args[0]
     assert insert_args.max_attempts == 23
     assert insert_args.priority == 2
     assert insert_args.queue == "job_custom_queue"
@@ -106,16 +107,18 @@ def test_insert_with_insert_opts_from_job(client, mock_exec):
         def to_json() -> str:
             return "{}"
 
-    mock_exec.job_insert.return_value = "job_row"
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(
         MyArgs(),
     )
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
-    insert_args = mock_exec.job_insert.call_args[0][0]
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_args = call_args[0]
     assert insert_args.max_attempts == 23
     assert insert_args.priority == 2
     assert insert_args.queue == "job_custom_queue"
@@ -140,7 +143,7 @@ def test_insert_with_insert_opts_precedence(client, mock_exec, simple_args):
         def to_json() -> str:
             return "{}"
 
-    mock_exec.job_insert.return_value = "job_row"
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(
         simple_args,
@@ -149,10 +152,12 @@ def test_insert_with_insert_opts_precedence(client, mock_exec, simple_args):
         ),
     )
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
-    insert_args = mock_exec.job_insert.call_args[0][0]
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_args = call_args[0]
     assert insert_args.max_attempts == 17
     assert insert_args.priority == 3
     assert insert_args.queue == "my_queue"
@@ -161,18 +166,18 @@ def test_insert_with_insert_opts_precedence(client, mock_exec, simple_args):
 
 def test_insert_with_unique_opts_by_args(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_args=True))
-
-    # fast path
-    mock_exec.job_insert_unique.return_value = ("job_row", False)
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
-    mock_exec.job_insert_unique.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
     # Check that the UniqueOpts were correctly processed
-    call_args = mock_exec.job_insert_unique.call_args[0][0]
-    assert call_args.kind == "simple"
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_params = call_args[0]
+    assert insert_params.kind == "simple"
 
 
 @patch("datetime.datetime")
@@ -182,51 +187,68 @@ def test_insert_with_unique_opts_by_period(
     mock_datetime.now.return_value = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
 
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_period=900))
-
-    # fast path
-    mock_exec.job_insert_unique.return_value = ("job_row", False)
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
-    mock_exec.job_insert_unique.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
     # Check that the UniqueOpts were correctly processed
-    call_args = mock_exec.job_insert_unique.call_args[0][0]
-    assert call_args.kind == "simple"
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_params = call_args[0]
+    assert insert_params.kind == "simple"
 
 
 def test_insert_with_unique_opts_by_queue(client, mock_exec, simple_args):
     insert_opts = InsertOpts(unique_opts=UniqueOpts(by_queue=True))
 
-    # fast path
-    mock_exec.job_insert_unique.return_value = ("job_row", False)
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
-    mock_exec.job_insert_unique.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
     # Check that the UniqueOpts were correctly processed
-    call_args = mock_exec.job_insert_unique.call_args[0][0]
-    assert call_args.kind == "simple"
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_params = call_args[0]
+    assert insert_params.kind == "simple"
+    # default unique states should all be set except for cancelled and discarded:
+    assert insert_params.unique_states == bytes([0b11110101])
 
 
 def test_insert_with_unique_opts_by_state(client, mock_exec, simple_args):
-    insert_opts = InsertOpts(unique_opts=UniqueOpts(by_state=["available", "running"]))
-
-    # slow path
-    mock_exec.job_get_by_kind_and_unique_properties.return_value = None
-    mock_exec.job_insert.return_value = "job_row"
+    # Turn on all unique states:
+    insert_opts = InsertOpts(
+        unique_opts=UniqueOpts(
+            by_state=[
+                "available",
+                "cancelled",
+                "completed",
+                "discarded",
+                "pending",
+                "retryable",
+                "running",
+                "scheduled",
+            ]
+        )
+    )
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
 
     insert_res = client.insert(simple_args, insert_opts=insert_opts)
 
-    mock_exec.job_insert.assert_called_once()
+    mock_exec.job_insert_many.assert_called_once()
     assert insert_res.job == "job_row"
 
     # Check that the UniqueOpts were correctly processed
-    call_args = mock_exec.job_insert.call_args[0][0]
-    assert call_args.kind == "simple"
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_params = call_args[0]
+    assert insert_params.kind == "simple"
+    assert insert_params.unique_states == bytes([0b11111111])
 
 
 def test_insert_kind_error(client):
@@ -263,7 +285,8 @@ def test_insert_to_json_none_error(client):
     assert "args should return non-nil from `to_json`" == str(ex.value)
 
 
-def test_tag_validation(client, simple_args):
+def test_tag_validation(client, mock_exec, simple_args):
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
     client.insert(
         simple_args, insert_opts=InsertOpts(tags=["foo", "bar", "baz", "foo-bar-baz"])
     )
@@ -283,17 +306,73 @@ def test_tag_validation(client, simple_args):
     )
 
 
-def test_check_advisory_lock_prefix_bounds():
-    Client(mock_driver, advisory_lock_prefix=123)
+@pytest.mark.parametrize(
+    "description, input_states, postgres_bitstring",
+    [
+        # Postgres bitstrings are little-endian, so the MSB (AVAILABLE) is on the right.
+        ("No states selected", [], bytes([0b00000000])),
+        ("Single state - available", [JobState.AVAILABLE], bytes([0b00000001])),
+        ("Single state - SCHEDULED", [JobState.SCHEDULED], bytes([0b10000000])),
+        ("Single state - RUNNING", [JobState.RUNNING], bytes([0b01000000])),
+        (
+            "AVAILABLE and SCHEDULED",
+            [JobState.AVAILABLE, JobState.SCHEDULED],
+            bytes([0b10000001]),
+        ),
+        (
+            "COMPLETED, PENDING, RETRYABLE",
+            [JobState.COMPLETED, JobState.PENDING, JobState.RETRYABLE],
+            bytes([0b00110100]),
+        ),
+        (
+            "Default states",
+            [
+                JobState.AVAILABLE,
+                JobState.COMPLETED,
+                JobState.PENDING,
+                JobState.RETRYABLE,
+                JobState.RUNNING,
+                JobState.SCHEDULED,
+            ],
+            bytes([0b11110101]),
+        ),
+        (
+            "All states selected",
+            [
+                JobState.AVAILABLE,
+                JobState.CANCELLED,
+                JobState.COMPLETED,
+                JobState.DISCARDED,
+                JobState.PENDING,
+                JobState.RETRYABLE,
+                JobState.RUNNING,
+                JobState.SCHEDULED,
+            ],
+            bytes([0b11111111]),
+        ),
+        (
+            "AVAILABLE, COMPLETED, RETRYABLE, SCHEDULED",
+            [
+                JobState.AVAILABLE,
+                JobState.COMPLETED,
+                JobState.RETRYABLE,
+                JobState.SCHEDULED,
+            ],
+            bytes([0b10100101]),
+        ),
+        (
+            "Overlapping states",
+            [JobState.AVAILABLE, JobState.AVAILABLE],
+            bytes([0b00000001]),
+        ),
+        ("None input treated as empty", None, bytes([0b00000000])),
+    ],
+)
+def test_unique_bitmask_from_states(description, input_states, postgres_bitstring):
+    if input_states is None:
+        input_states = []
 
-    with pytest.raises(OverflowError) as ex:
-        Client(mock_driver, advisory_lock_prefix=-1)
-    assert "can't convert negative int to unsigned" == str(ex.value)
-
-    # 2^32-1 is 0xffffffff (1s for 32 bits) which fits
-    Client(mock_driver, advisory_lock_prefix=2**32 - 1)
-
-    # 2^32 is 0x100000000, which does not
-    with pytest.raises(OverflowError) as ex:
-        Client(mock_driver, advisory_lock_prefix=2**32)
-    assert "int too big to convert" == str(ex.value)
+    result = unique_bitmask_from_states(input_states)
+    assert (
+        result == postgres_bitstring
+    ), f"{description} For states {input_states}, expected {postgres_bitstring}, got {result}"

@@ -63,7 +63,7 @@ jobs:
         run: psql --echo-errors --quiet -c '\timing off' -c "CREATE DATABASE ${TEST_DATABASE_NAME};" ${ADMIN_DATABASE_URL}
 
       - name: river migrate-up
-        run: river migrate-up --database-url "$TEST_DATABASE_URL" --max-steps 5 # temporarily include max steps so tests can pass with unique fixes
+        run: river migrate-up --database-url "$TEST_DATABASE_URL"
 
       - name: Test
         run: rye test
@@ -109,7 +109,7 @@ jobs:
         run: psql --echo-errors --quiet -c '\timing off' -c "CREATE DATABASE ${DATABASE_NAME};" ${ADMIN_DATABASE_URL}
 
       - name: river migrate-up
-        run: river migrate-up --database-url "$DATABASE_URL" --max-steps 5 # temporarily include max steps so tests can pass with unique fixes
+        run: river migrate-up --database-url "$DATABASE_URL"
 
       - name: Run examples
         run: rye run python3 -m examples.all

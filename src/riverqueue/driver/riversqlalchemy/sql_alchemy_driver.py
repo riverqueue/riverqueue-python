@@ -18,58 +18,27 @@ from typing import (
 from ...driver import (
     DriverProtocol,
     ExecutorProtocol,
-    JobGetByKindAndUniquePropertiesParam,
     JobInsertParams,
 )
+from ...client import unique_bitmask_to_states
 from ...job import AttemptError, Job, JobState
-from .dbsqlc import models, river_job, pg_misc
+from .dbsqlc import models, river_job
 
 
 class AsyncExecutor(AsyncExecutorProtocol):
     def __init__(self, conn: AsyncConnection):
         self.conn = conn
-        self.pg_misc_querier = pg_misc.AsyncQuerier(conn)
         self.job_querier = river_job.AsyncQuerier(conn)
 
-    async def advisory_lock(self, key: int) -> None:
-        await self.pg_misc_querier.pg_advisory_xact_lock(key=key)
-
-    async def job_insert(self, insert_params: JobInsertParams) -> Job:
-        return job_from_row(
-            cast(  # drop Optional[] because insert always returns a row
-                models.RiverJob,
-                await self.job_querier.job_insert_fast(
-                    cast(river_job.JobInsertFastParams, insert_params)
-                ),
+    async def job_insert_many(
+        self, all_params: list[JobInsertParams]
+    ) -> list[tuple[Job, bool]]:
+        return [
+            _job_insert_result_from_row(row)
+            async for row in self.job_querier.job_insert_fast_many(
+                _build_insert_many_params(all_params)
             )
-        )
-
-    async def job_insert_many(self, all_params: list[JobInsertParams]) -> int:
-        await self.job_querier.job_insert_fast_many(
-            _build_insert_many_params(all_params)
-        )
-        return len(all_params)
-
-    async def job_insert_unique(
-        self, insert_params: JobInsertParams, unique_key: bytes
-    ) -> tuple[Job, bool]:
-        insert_unique_params = cast(river_job.JobInsertUniqueParams, insert_params)
-        insert_unique_params.unique_key = memoryview(unique_key)
-
-        res = cast(  # drop Optional[] because insert always returns a row
-            river_job.JobInsertUniqueRow,
-            await self.job_querier.job_insert_unique(insert_unique_params),
-        )
-
-        return job_from_row(res), res.unique_skipped_as_duplicate
-
-    async def job_get_by_kind_and_unique_properties(
-        self, get_params: JobGetByKindAndUniquePropertiesParam
-    ) -> Optional[Job]:
-        row = await self.job_querier.job_get_by_kind_and_unique_properties(
-            cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
-        )
-        return job_from_row(row) if row else None
+        ]
 
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator:
@@ -108,46 +77,15 @@ class AsyncDriver(AsyncDriverProtocol):
 class Executor(ExecutorProtocol):
     def __init__(self, conn: Connection):
         self.conn = conn
-        self.pg_misc_querier = pg_misc.Querier(conn)
         self.job_querier = river_job.Querier(conn)
 
-    def advisory_lock(self, key: int) -> None:
-        self.pg_misc_querier.pg_advisory_xact_lock(key=key)
-
-    def job_insert(self, insert_params: JobInsertParams) -> Job:
-        return job_from_row(
-            cast(  # drop Optional[] because insert always returns a row
-                models.RiverJob,
-                self.job_querier.job_insert_fast(
-                    cast(river_job.JobInsertFastParams, insert_params)
-                ),
-            ),
+    def job_insert_many(
+        self, all_params: list[JobInsertParams]
+    ) -> list[tuple[Job, bool]]:
+        res = self.job_querier.job_insert_fast_many(
+            _build_insert_many_params(all_params)
         )
-
-    def job_insert_many(self, all_params: list[JobInsertParams]) -> int:
-        self.job_querier.job_insert_fast_many(_build_insert_many_params(all_params))
-        return len(all_params)
-
-    def job_insert_unique(
-        self, insert_params: JobInsertParams, unique_key: bytes
-    ) -> tuple[Job, bool]:
-        insert_unique_params = cast(river_job.JobInsertUniqueParams, insert_params)
-        insert_unique_params.unique_key = memoryview(unique_key)
-
-        res = cast(  # drop Optional[] because insert always returns a row
-            river_job.JobInsertUniqueRow,
-            self.job_querier.job_insert_unique(insert_unique_params),
-        )
-
-        return job_from_row(res), res.unique_skipped_as_duplicate
-
-    def job_get_by_kind_and_unique_properties(
-        self, get_params: JobGetByKindAndUniquePropertiesParam
-    ) -> Optional[Job]:
-        row = self.job_querier.job_get_by_kind_and_unique_properties(
-            cast(river_job.JobGetByKindAndUniquePropertiesParams, get_params)
-        )
-        return job_from_row(row) if row else None
+        return [_job_insert_result_from_row(row) for row in res]
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -194,6 +132,8 @@ def _build_insert_many_params(
         scheduled_at=[],
         state=[],
         tags=[],
+        unique_key=[],
+        unique_states=[],
     )
 
     for insert_params in all_params:
@@ -208,11 +148,19 @@ def _build_insert_many_params(
         )
         insert_many_params.state.append(cast(models.RiverJobState, insert_params.state))
         insert_many_params.tags.append(",".join(insert_params.tags))
+        insert_many_params.unique_key.append(insert_params.unique_key or None)
+
+        if insert_params.unique_states:
+            one_byte = insert_params.unique_states[0]
+            bit_string = format(one_byte, "08b")
+            insert_many_params.unique_states.append(bit_string)
+        else:
+            insert_many_params.unique_states.append(None)
 
     return insert_many_params
 
 
-def job_from_row(row: models.RiverJob | river_job.JobInsertUniqueRow) -> Job:
+def job_from_row(row: models.RiverJob) -> Job:
     """
     Converts an internal sqlc generated row to the top level type, issuing a few
     minor transformations along the way. Timestamps are changed from local
@@ -240,5 +188,14 @@ def job_from_row(row: models.RiverJob | river_job.JobInsertUniqueRow) -> Job:
         scheduled_at=to_utc(row.scheduled_at),
         state=cast(JobState, row.state),
         tags=row.tags,
-        unique_key=cast(Optional[bytes], row.unique_key),
+        unique_key=cast(Optional[bytes], row.unique_key) if row.unique_key else None,
+        unique_states=unique_bitmask_to_states(row.unique_states)
+        if row.unique_states
+        else None,
     )
+
+
+def _job_insert_result_from_row(
+    row: river_job.JobInsertFastManyRow,
+) -> tuple[Job, bool]:
+    return job_from_row(cast(models.RiverJob, row)), row.unique_skipped_as_duplicate

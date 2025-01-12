@@ -199,6 +199,11 @@ class Job:
     configuration.
     """
 
+    unique_states: Optional[list[JobState]]
+    """
+    A list of states that the job must be in to be considered for uniqueness.
+    """
+
 
 @dataclass
 class AttemptError:

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, List, Literal, Optional, Union
 
 from riverqueue.job import JobState
 
@@ -82,6 +82,8 @@ class UniqueOpts:
     args and queues. If either args or queue is changed on a new job, it's
     allowed to be inserted as a new job.
 
+    TODO update description ⚠ ⚠️ ⚠
+
     Uniquenes is checked at insert time by taking a Postgres advisory lock,
     doing a look up for an equivalent row, and inserting only if none was found.
     There's no database-level mechanism that guarantees jobs stay unique, so if
@@ -89,7 +91,7 @@ class UniqueOpts:
     check doesn't occur), it's conceivable that duplicates could coexist.
     """
 
-    by_args: Optional[Literal[True]] = None
+    by_args: Optional[Union[Literal[True], List[str]]] = None
     """
     Indicates that uniqueness should be enforced for any specific instance of
     encoded args for a job.
@@ -139,4 +141,13 @@ class UniqueOpts:
     With this setting, any jobs of the same kind that have been completed or
     discarded, but not yet cleaned out by the system, won't count towards the
     uniqueness of a new insert.
+    """
+
+    exclude_kind: Optional[Literal[True]] = None
+    """
+    Indicates that the job kind should be excluded from the unique key
+    computation.
+
+    Default is false, meaning that the job kind is included in the unique key
+    computation.
     """

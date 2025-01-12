@@ -4,28 +4,9 @@ from contextlib import (
 )
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Iterator, List, Optional, Protocol
+from typing import Any, Iterator, Optional, Protocol
 
 from ..job import Job
-
-
-@dataclass()
-class JobGetByKindAndUniquePropertiesParam:
-    """
-    Parameters for looking up a job by kind and unique properties.
-    """
-
-    kind: str
-    by_args: Optional[bool] = None
-    args: Optional[Any] = None
-    by_created_at: Optional[bool] = None
-    created_at: Optional[List[datetime]] = None
-    created_at_begin: Optional[datetime] = None
-    created_at_end: Optional[datetime] = None
-    by_queue: Optional[bool] = None
-    queue: Optional[str] = None
-    by_state: Optional[bool] = None
-    state: Optional[List[str]] = None
 
 
 @dataclass
@@ -46,6 +27,8 @@ class JobInsertParams:
     scheduled_at: Optional[datetime] = None
     state: str = field(default="available")
     tags: list[str] = field(default_factory=list)
+    unique_key: Optional[bytes] = None
+    unique_states: Optional[bytes] = None
 
 
 class AsyncExecutorProtocol(Protocol):
@@ -55,23 +38,9 @@ class AsyncExecutorProtocol(Protocol):
     job.
     """
 
-    async def advisory_lock(self, lock: int) -> None:
-        pass
-
-    async def job_insert(self, insert_params: JobInsertParams) -> Job:
-        pass
-
-    async def job_insert_many(self, all_params) -> int:
-        pass
-
-    async def job_insert_unique(
-        self, insert_params: JobInsertParams, unique_key: bytes
-    ) -> tuple[Job, bool]:
-        pass
-
-    async def job_get_by_kind_and_unique_properties(
-        self, get_params: JobGetByKindAndUniquePropertiesParam
-    ) -> Optional[Job]:
+    async def job_insert_many(
+        self, all_params: list[JobInsertParams]
+    ) -> list[tuple[Job, bool]]:
         pass
 
     # Even after spending two hours on it, I'm unable to find a return type for
@@ -133,23 +102,9 @@ class ExecutorProtocol(Protocol):
     job.
     """
 
-    def advisory_lock(self, lock: int) -> None:
-        pass
-
-    def job_insert(self, insert_params: JobInsertParams) -> Job:
-        pass
-
-    def job_insert_many(self, all_params) -> int:
-        pass
-
-    def job_insert_unique(
-        self, insert_params: JobInsertParams, unique_key: bytes
-    ) -> tuple[Job, bool]:
-        pass
-
-    def job_get_by_kind_and_unique_properties(
-        self, get_params: JobGetByKindAndUniquePropertiesParam
-    ) -> Optional[Job]:
+    def job_insert_many(
+        self, all_params: list[JobInsertParams]
+    ) -> list[tuple[Job, bool]]:
         pass
 
     @contextmanager
