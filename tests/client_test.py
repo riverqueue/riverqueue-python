@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -16,17 +16,20 @@ def mock_driver() -> DriverProtocol:
 
 @pytest.fixture
 def mock_exec(mock_driver) -> ExecutorProtocol:
-    def mock_context_manager(val) -> Mock:
-        context_manager_mock = MagicMock()
-        context_manager_mock.__enter__.return_value = val
-        context_manager_mock.__exit__.return_value = Mock()
-        return context_manager_mock
+    # Don't try to mock a context manager. It will cause endless pain around the
+    # edges like swallowing raised exceptions.
+    class TrivialContextManager:
+        def __init__(self, with_val):
+            self.with_val = with_val
 
-    # def mock_context_manager(val) -> Mock:
-    #     return Mock(__enter__=val, __exit__=Mock())
+        def __enter__(self):
+            return self.with_val
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
 
     mock_exec = MagicMock(spec=ExecutorProtocol)
-    mock_driver.executor.return_value = mock_context_manager(mock_exec)
+    mock_driver.executor.return_value = TrivialContextManager(mock_exec)
 
     return mock_exec
 
