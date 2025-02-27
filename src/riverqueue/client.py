@@ -8,6 +8,7 @@ from typing import (
     List,
     runtime_checkable,
 )
+import json
 
 from riverqueue.insert_opts import InsertOpts, UniqueOpts
 
@@ -559,7 +560,20 @@ def _build_unique_key_and_bitmask(
 
     if unique_opts.by_args:
         any_unique_opts = True
-        unique_key += f"&args={insert_params.args}"
+
+        # Re-parse the args JSON for sorting and potentially filtering:
+        args_dict = json.loads(insert_params.args)
+
+        args_to_include = args_dict
+        if unique_opts.by_args is not True:
+            # Filter to include only the specified keys:
+            args_to_include = {
+                key: args_dict[key] for key in unique_opts.by_args if key in args_dict
+            }
+
+        # Serialize with sorted keys and append to unique key:
+        sorted_args = json.dumps(args_to_include, sort_keys=True)
+        unique_key += f"&args={sorted_args}"
 
     if unique_opts.by_period:
         lower_period_bound = _truncate_time(

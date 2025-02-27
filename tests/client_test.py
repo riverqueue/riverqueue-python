@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
+import json
 
 import pytest
 
@@ -225,14 +226,14 @@ def test_insert_with_unique_opts_by_state(client, mock_exec, simple_args):
     insert_opts = InsertOpts(
         unique_opts=UniqueOpts(
             by_state=[
-                "available",
-                "cancelled",
-                "completed",
-                "discarded",
-                "pending",
-                "retryable",
-                "running",
-                "scheduled",
+                JobState.AVAILABLE,
+                JobState.CANCELLED,
+                JobState.COMPLETED,
+                JobState.DISCARDED,
+                JobState.PENDING,
+                JobState.RETRYABLE,
+                JobState.RUNNING,
+                JobState.SCHEDULED,
             ]
         )
     )
@@ -249,6 +250,143 @@ def test_insert_with_unique_opts_by_state(client, mock_exec, simple_args):
     insert_params = call_args[0]
     assert insert_params.kind == "simple"
     assert insert_params.unique_states == bytes([0b11111111])
+
+
+def test_insert_with_unique_opts_by_args_true(client, mock_exec, simple_args):
+    """Test that by_args=True uses full args with sorted keys"""
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
+
+    # Call with by_args=True
+    insert_opts = InsertOpts(unique_opts=UniqueOpts(by_args=True))
+
+    insert_res = client.insert(simple_args, insert_opts=insert_opts)
+
+    mock_exec.job_insert_many.assert_called_once()
+    assert insert_res.job == "job_row"
+
+    # Verify the by_args=True was properly handled
+    call_args = mock_exec.job_insert_many.call_args[0][0]
+    assert len(call_args) == 1
+    insert_params = call_args[0]
+    assert insert_params.unique_key is not None
+
+
+def test_insert_with_unique_opts_by_args_sorting(
+    client: Client, mock_exec: MagicMock
+) -> None:
+    """Test that different key order in args produces the same unique key"""
+    mock_exec.job_insert_many.side_effect = [
+        [("job_row1", False)],
+        [("job_row2", False)],
+    ]
+
+    @dataclass
+    class JsonArgs:
+        kind: str = "ordered"
+        json_str: str = ""
+
+        def to_json(self) -> str:
+            return self.json_str
+
+    # Insert with different key orders
+    insert_opts = InsertOpts(unique_opts=UniqueOpts(by_args=True))
+
+    # Same data with different key orders
+    ordered_json = '{"a": 1, "b": 2, "c": 3}'
+    reverse_ordered_json = '{"c": 3, "b": 2, "a": 1}'
+
+    insert_res1 = client.insert(
+        JsonArgs(json_str=ordered_json), insert_opts=insert_opts
+    )
+    insert_res2 = client.insert(
+        JsonArgs(json_str=reverse_ordered_json), insert_opts=insert_opts
+    )
+
+    # Get the unique keys that were generated
+    call_args1 = mock_exec.job_insert_many.call_args_list[0][0][0]  # type: ignore[index]
+    call_args2 = mock_exec.job_insert_many.call_args_list[1][0][0]  # type: ignore[index]
+
+    # The unique keys should be identical despite different order in original JSON
+    assert call_args1[0].unique_key == call_args2[0].unique_key
+
+
+def test_insert_with_unique_opts_by_args_partial_keys(
+    client: Client, mock_exec: MagicMock
+) -> None:
+    """Test that by_args with keys extracts only specified keys, even from nested objects"""
+    mock_exec.job_insert_many.return_value = [("job_row", False)]
+
+    @dataclass
+    class JsonArgs:
+        kind: str = "partial"
+        json_str: str = ""
+
+        def to_json(self) -> str:
+            return self.json_str
+
+    args1 = json.dumps(
+        {
+            "a": "value",
+            "b": "foo",
+            "c": {
+                "d": "bar",
+            },
+            "e": "ignore_this",
+        }
+    )
+
+    # Same data as args1 except for omitted `e`, and reordered keys. It's a duplicate:
+    args2 = json.dumps(
+        {
+            "c": {
+                "d": "bar",
+            },
+            "b": "foo",
+            "a": "value",
+        }
+    )
+
+    # Missing `c`, so it's not a duplicate:
+    args3 = json.dumps(
+        {
+            "a": "value",
+            "b": "foo",
+            "d": "something else",  # Omitted
+        }
+    )
+
+    args4 = json.dumps(
+        {
+            "b": "foo",
+            "a": "value",
+            "e": "bar",  # Omitted
+        }
+    )
+
+    # Filter by a, b, and c:
+    insert_opts = InsertOpts(unique_opts=UniqueOpts(by_args=["a", "b", "c"]))
+
+    client.insert(JsonArgs(json_str=args1), insert_opts=insert_opts)
+    client.insert(JsonArgs(json_str=args2), insert_opts=insert_opts)
+    client.insert(JsonArgs(json_str=args3), insert_opts=insert_opts)
+    client.insert(JsonArgs(json_str=args4), insert_opts=insert_opts)
+
+    # Parse args to verify filtering
+    call_args_1 = mock_exec.job_insert_many.call_args_list[0][0][0]  # type: ignore[index]
+    insert_params_1 = call_args_1[0]
+    call_args_2 = mock_exec.job_insert_many.call_args_list[1][0][0]  # type: ignore[index]
+    insert_params_2 = call_args_2[0]
+    call_args_3 = mock_exec.job_insert_many.call_args_list[2][0][0]  # type: ignore[index]
+    insert_params_3 = call_args_3[0]
+    call_args_4 = mock_exec.job_insert_many.call_args_list[3][0][0]  # type: ignore[index]
+    insert_params_4 = call_args_4[0]
+
+    # Check that the keys were filtered correctly
+    assert insert_params_1.unique_key == insert_params_2.unique_key
+    # args3 is missing `c`, so it's not a duplicate:
+    assert insert_params_1.unique_key != insert_params_3.unique_key
+    # args3 and args4 are both the same when only looking at the filtered keys:
+    assert insert_params_3.unique_key == insert_params_4.unique_key
 
 
 def test_insert_kind_error(client):

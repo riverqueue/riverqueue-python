@@ -157,6 +157,8 @@ class TestAsyncClient:
         insert_opts = InsertOpts(queue="high_priority", unique_opts=None)
         insert_res = await client.insert(simple_args, insert_opts=insert_opts)
         assert insert_res.job
+        assert insert_res.job.unique_key is None
+        assert insert_res.job.unique_states is None
 
     @pytest.mark.asyncio
     async def test_insert_with_unique_opts_by_args(self, client, simple_args):
@@ -352,6 +354,8 @@ class TestSyncClient:
         insert_opts = InsertOpts(queue="high_priority", unique_opts=None)
         insert_res = client.insert(simple_args, insert_opts=insert_opts)
         assert insert_res.job
+        assert insert_res.job.unique_key is None
+        assert insert_res.job.unique_states is None
 
     def test_insert_with_unique_opts_by_args(self, client, simple_args):
         print("self", self)
