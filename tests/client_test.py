@@ -295,12 +295,8 @@ def test_insert_with_unique_opts_by_args_sorting(
     ordered_json = '{"a": 1, "b": 2, "c": 3}'
     reverse_ordered_json = '{"c": 3, "b": 2, "a": 1}'
 
-    insert_res1 = client.insert(
-        JsonArgs(json_str=ordered_json), insert_opts=insert_opts
-    )
-    insert_res2 = client.insert(
-        JsonArgs(json_str=reverse_ordered_json), insert_opts=insert_opts
-    )
+    client.insert(JsonArgs(json_str=ordered_json), insert_opts=insert_opts)
+    client.insert(JsonArgs(json_str=reverse_ordered_json), insert_opts=insert_opts)
 
     # Get the unique keys that were generated
     call_args1 = mock_exec.job_insert_many.call_args_list[0][0][0]  # type: ignore[index]

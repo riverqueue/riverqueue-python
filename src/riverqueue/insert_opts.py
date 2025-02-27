@@ -82,13 +82,8 @@ class UniqueOpts:
     args and queues. If either args or queue is changed on a new job, it's
     allowed to be inserted as a new job.
 
-    TODO update description ⚠ ⚠️ ⚠
-
-    Uniquenes is checked at insert time by taking a Postgres advisory lock,
-    doing a look up for an equivalent row, and inserting only if none was found.
-    There's no database-level mechanism that guarantees jobs stay unique, so if
-    an equivalent row is inserted out of band (or batch inserted, where a unique
-    check doesn't occur), it's conceivable that duplicates could coexist.
+    Uniqueness relies on a hash of the job kind and any unique properties along
+    with a database unique constraint.
     """
 
     by_args: Optional[Union[Literal[True], List[str]]] = None
@@ -98,6 +93,14 @@ class UniqueOpts:
 
     Default is false, meaning that as long as any other unique property is
     enabled, uniqueness will be enforced for a kind regardless of input args.
+
+    When set to true, the entire encoded args will be included in the uniqueness
+    hash, which requires care to ensure that no irrelevant args are factored
+    into the uniqueness check. It is also possible to use a subset of the args
+    by passing a list of string keys to include in the uniqueness check.
+
+    All keys are sorted alphabetically before hashing to ensure consistent
+    results.
     """
 
     by_period: Optional[int] = None

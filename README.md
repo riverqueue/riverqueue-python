@@ -95,12 +95,14 @@ insert_res.job
 insert_res.unique_skipped_as_duplicated
 ```
 
+Unique jobs can also be inserted in bulk.
+
 ## Inserting jobs in bulk
 
 Use `#insert_many` to bulk insert jobs as a single operation for improved efficiency:
 
 ```python
-num_inserted = client.insert_many([
+results = client.insert_many([
     SimpleArgs(job_num=1),
     SimpleArgs(job_num=2)
 ])
@@ -109,7 +111,7 @@ num_inserted = client.insert_many([
 Or with `InsertManyParams`, which may include insertion options:
 
 ```python
-num_inserted = client.insert_many([
+results = client.insert_many([
     InsertManyParams(args=SimpleArgs(job_num=1), insert_opts=riverqueue.InsertOpts(max_attempts=5)),
     InsertManyParams(args=SimpleArgs(job_num=2), insert_opts=riverqueue.InsertOpts(queue="high_priority"))
 ])
