@@ -571,8 +571,9 @@ def _build_unique_key_and_bitmask(
                 key: args_dict[key] for key in unique_opts.by_args if key in args_dict
             }
 
-        # Serialize with sorted keys and append to unique key:
-        sorted_args = json.dumps(args_to_include, sort_keys=True)
+        # Serialize with sorted keys and append to unique key. Remove whitespace
+        # from the JSON to match other implementations:
+        sorted_args = json.dumps(args_to_include, sort_keys=True, separators=(",", ":"))
         unique_key += f"&args={sorted_args}"
 
     if unique_opts.by_period:
