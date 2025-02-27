@@ -148,14 +148,16 @@ def _build_insert_many_params(
         )
         insert_many_params.state.append(cast(models.RiverJobState, insert_params.state))
         insert_many_params.tags.append(",".join(insert_params.tags))
-        insert_many_params.unique_key.append(insert_params.unique_key or None)
+        insert_many_params.unique_key.append(
+            memoryview(insert_params.unique_key or b"")
+        )
 
         if insert_params.unique_states:
             one_byte = insert_params.unique_states[0]
             bit_string = format(one_byte, "08b")
             insert_many_params.unique_states.append(bit_string)
         else:
-            insert_many_params.unique_states.append(None)
+            insert_many_params.unique_states.append("")
 
     return insert_many_params
 

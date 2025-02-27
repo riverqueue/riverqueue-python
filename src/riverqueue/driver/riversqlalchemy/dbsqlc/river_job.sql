@@ -73,9 +73,9 @@ INSERT INTO river_job(
     -- query.
     string_to_array(unnest(@tags::text[]), ','),
 
-    unnest(@unique_key::bytea[]),
+    nullif(unnest(@unique_key::bytea[]), ''),
     -- Strings of bits are used for the input type here to make sqlalchemy play nicely with bit(8):
-    unnest(@unique_states::text[])::bit(8)
+    nullif(unnest(@unique_states::text[]), '')::bit(8)
 
 ON CONFLICT (unique_key)
     WHERE unique_key IS NOT NULL

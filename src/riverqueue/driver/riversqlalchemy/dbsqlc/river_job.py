@@ -52,9 +52,9 @@ INSERT INTO river_job(
     -- query.
     string_to_array(unnest(:p9\\:\\:text[]), ','),
 
-    unnest(:p10\\:\\:bytea[]),
+    nullif(unnest(:p10\\:\\:bytea[]), ''),
     -- Strings of bits are used for the input type here to make sqlalchemy play nicely with bit(8)\\:
-    unnest(:p11\\:\\:text[])\\:\\:bit(8)
+    nullif(unnest(:p11\\:\\:text[]), '')\\:\\:bit(8)
 
 ON CONFLICT (unique_key)
     WHERE unique_key IS NOT NULL
