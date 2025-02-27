@@ -1,28 +1,37 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from hashlib import sha256
 import re
 from typing import (
     Optional,
     Protocol,
-    Tuple,
     List,
-    cast,
     runtime_checkable,
 )
+import json
 
 from riverqueue.insert_opts import InsertOpts, UniqueOpts
 
 from .driver import (
-    JobGetByKindAndUniquePropertiesParam,
     JobInsertParams,
     DriverProtocol,
-    ExecutorProtocol,
 )
-from .driver.driver_protocol import AsyncDriverProtocol, AsyncExecutorProtocol
+from .driver.driver_protocol import AsyncDriverProtocol, ExecutorProtocol
 from .job import Job, JobState
-from .fnv import fnv1_hash
 
+JOB_STATE_BIT_POSITIONS = {
+    JobState.AVAILABLE: 7,
+    JobState.CANCELLED: 6,
+    JobState.COMPLETED: 5,
+    JobState.DISCARDED: 4,
+    JobState.PENDING: 3,
+    JobState.RETRYABLE: 2,
+    JobState.RUNNING: 1,
+    JobState.SCHEDULED: 0,
+}
+"""
+Maps job states to bit positions in a unique bitmask.
+"""
 
 MAX_ATTEMPTS_DEFAULT: int = 25
 """
@@ -39,15 +48,26 @@ QUEUE_DEFAULT: str = "default"
 Default queue for a job.
 """
 
-UNIQUE_STATES_DEFAULT: list[str] = [
+UNIQUE_STATES_DEFAULT: list[JobState] = [
     JobState.AVAILABLE,
     JobState.COMPLETED,
+    JobState.PENDING,
     JobState.RUNNING,
     JobState.RETRYABLE,
     JobState.SCHEDULED,
 ]
 """
 Default job states included during a unique job insertion.
+"""
+
+UNIQUE_STATES_REQUIRED: list[JobState] = [
+    JobState.AVAILABLE,
+    JobState.PENDING,
+    JobState.RUNNING,
+    JobState.SCHEDULED,
+]
+"""
+Job states required when customizing the state list for unique job insertion.
 """
 
 
@@ -128,13 +148,8 @@ class AsyncClient:
     This variant is for use with Python's asyncio (asynchronous I/O).
     """
 
-    def __init__(
-        self, driver: AsyncDriverProtocol, advisory_lock_prefix: Optional[int] = None
-    ):
+    def __init__(self, driver: AsyncDriverProtocol):
         self.driver = driver
-        self.advisory_lock_prefix = _check_advisory_lock_prefix_bounds(
-            advisory_lock_prefix
-        )
 
     async def insert(
         self, args: JobArgs, insert_opts: Optional[InsertOpts] = None
@@ -200,12 +215,10 @@ class AsyncClient:
         Returns an instance of `InsertResult`.
         """
 
-        async with self.driver.executor() as exec:
-            if not insert_opts:
-                insert_opts = InsertOpts()
-            insert_params, unique_opts = _make_driver_insert_params(args, insert_opts)
+        if not insert_opts:
+            insert_opts = InsertOpts()
 
-            return await self.__insert_job_with_unique(exec, insert_params, unique_opts)
+        return (await self.insert_many([InsertManyParams(args, insert_opts)]))[0]
 
     async def insert_tx(
         self, tx, args: JobArgs, insert_opts: Optional[InsertOpts] = None
@@ -242,14 +255,14 @@ class AsyncClient:
             ```
         """
 
-        exec = self.driver.unwrap_executor(tx)
         if not insert_opts:
             insert_opts = InsertOpts()
-        insert_params, unique_opts = _make_driver_insert_params(args, insert_opts)
 
-        return await self.__insert_job_with_unique(exec, insert_params, unique_opts)
+        return (await self.insert_many_tx(tx, [InsertManyParams(args, insert_opts)]))[0]
 
-    async def insert_many(self, args: List[JobArgs | InsertManyParams]) -> int:
+    async def insert_many(
+        self, args: List[JobArgs | InsertManyParams]
+    ) -> list[InsertResult]:
         """
         Inserts many new jobs as part of a single batch operation for improved
         efficiency.
@@ -282,9 +295,12 @@ class AsyncClient:
         """
 
         async with self.driver.executor() as exec:
-            return await exec.job_insert_many(_make_driver_insert_params_many(args))
+            res = await exec.job_insert_many(_make_driver_insert_params_many(args))
+            return _to_insert_results(res)
 
-    async def insert_many_tx(self, tx, args: List[JobArgs | InsertManyParams]) -> int:
+    async def insert_many_tx(
+        self, tx, args: List[JobArgs | InsertManyParams]
+    ) -> list[InsertResult]:
         """
         Inserts many new jobs as part of a single batch operation for improved
         efficiency.
@@ -316,52 +332,8 @@ class AsyncClient:
         """
 
         exec = self.driver.unwrap_executor(tx)
-        return await exec.job_insert_many(_make_driver_insert_params_many(args))
-
-    async def __insert_job_with_unique(
-        self,
-        exec: AsyncExecutorProtocol,
-        insert_params: JobInsertParams,
-        unique_opts: Optional[UniqueOpts],
-    ) -> InsertResult:
-        """
-        Inserts a job, accounting for unique jobs whose insertion may be skipped
-        if an equivalent job is already present.
-        """
-
-        get_params, unique_key = _build_unique_get_params_and_unique_key(
-            insert_params, unique_opts
-        )
-
-        if not get_params or not unique_opts:
-            return InsertResult(await exec.job_insert(insert_params))
-
-        # fast path
-        if (
-            not unique_opts.by_state
-            or unique_opts.by_state.sort == UNIQUE_STATES_DEFAULT
-        ):
-            job, unique_skipped_as_duplicate = await exec.job_insert_unique(
-                insert_params, sha256(unique_key.encode("utf-8")).digest()
-            )
-            return InsertResult(
-                job=job, unique_skipped_as_duplicated=unique_skipped_as_duplicate
-            )
-
-        async with exec.transaction():
-            lock_key = "unique_key"
-            lock_key += "kind=#{insert_params.kind}"
-            lock_key += unique_key
-
-            await exec.advisory_lock(
-                _hash_lock_key(self.advisory_lock_prefix, lock_key)
-            )
-
-            existing_job = await exec.job_get_by_kind_and_unique_properties(get_params)
-            if existing_job:
-                return InsertResult(existing_job, unique_skipped_as_duplicated=True)
-
-            return InsertResult(await exec.job_insert(insert_params))
+        res = await exec.job_insert_many(_make_driver_insert_params_many(args))
+        return _to_insert_results(res)
 
 
 class Client:
@@ -382,13 +354,8 @@ class Client:
         ```
     """
 
-    def __init__(
-        self, driver: DriverProtocol, advisory_lock_prefix: Optional[int] = None
-    ):
+    def __init__(self, driver: DriverProtocol):
         self.driver = driver
-        self.advisory_lock_prefix = _check_advisory_lock_prefix_bounds(
-            advisory_lock_prefix
-        )
 
     def insert(
         self, args: JobArgs, insert_opts: Optional[InsertOpts] = None
@@ -454,12 +421,10 @@ class Client:
         Returns an instance of `InsertResult`.
         """
 
-        with self.driver.executor() as exec:
-            if not insert_opts:
-                insert_opts = InsertOpts()
-            insert_params, unique_opts = _make_driver_insert_params(args, insert_opts)
+        if not insert_opts:
+            insert_opts = InsertOpts()
 
-            return self.__insert_job_with_unique(exec, insert_params, unique_opts)
+        return self.insert_many([InsertManyParams(args, insert_opts)])[0]
 
     def insert_tx(
         self, tx, args: JobArgs, insert_opts: Optional[InsertOpts] = None
@@ -496,14 +461,12 @@ class Client:
             ```
         """
 
-        exec = self.driver.unwrap_executor(tx)
         if not insert_opts:
             insert_opts = InsertOpts()
-        insert_params, unique_opts = _make_driver_insert_params(args, insert_opts)
 
-        return self.__insert_job_with_unique(exec, insert_params, unique_opts)
+        return self.insert_many_tx(tx, [InsertManyParams(args, insert_opts)])[0]
 
-    def insert_many(self, args: List[JobArgs | InsertManyParams]) -> int:
+    def insert_many(self, args: List[JobArgs | InsertManyParams]) -> list[InsertResult]:
         """
         Inserts many new jobs as part of a single batch operation for improved
         efficiency.
@@ -536,9 +499,11 @@ class Client:
         """
 
         with self.driver.executor() as exec:
-            return exec.job_insert_many(_make_driver_insert_params_many(args))
+            return self._insert_many_exec(exec, args)
 
-    def insert_many_tx(self, tx, args: List[JobArgs | InsertManyParams]) -> int:
+    def insert_many_tx(
+        self, tx, args: List[JobArgs | InsertManyParams]
+    ) -> list[InsertResult]:
         """
         Inserts many new jobs as part of a single batch operation for improved
         efficiency.
@@ -569,75 +534,47 @@ class Client:
         Returns the number of jobs inserted.
         """
 
-        exec = self.driver.unwrap_executor(tx)
-        return exec.job_insert_many(_make_driver_insert_params_many(args))
+        return self._insert_many_exec(self.driver.unwrap_executor(tx), args)
 
-    def __insert_job_with_unique(
-        self,
-        exec: ExecutorProtocol,
-        insert_params: JobInsertParams,
-        unique_opts: Optional[UniqueOpts],
-    ) -> InsertResult:
-        """
-        Inserts a job, accounting for unique jobs whose insertion may be skipped
-        if an equivalent job is already present.
-        """
-
-        get_params, unique_key = _build_unique_get_params_and_unique_key(
-            insert_params, unique_opts
-        )
-
-        if not get_params or not unique_opts:
-            return InsertResult(exec.job_insert(insert_params))
-
-        # fast path
-        if (
-            not unique_opts.by_state
-            or unique_opts.by_state.sort == UNIQUE_STATES_DEFAULT
-        ):
-            job, unique_skipped_as_duplicate = exec.job_insert_unique(
-                insert_params, sha256(unique_key.encode("utf-8")).digest()
-            )
-            return InsertResult(
-                job=job, unique_skipped_as_duplicated=unique_skipped_as_duplicate
-            )
-
-        with exec.transaction():
-            lock_key = "unique_key"
-            lock_key += "kind=#{insert_params.kind}"
-            lock_key += unique_key
-
-            exec.advisory_lock(_hash_lock_key(self.advisory_lock_prefix, lock_key))
-
-            existing_job = exec.job_get_by_kind_and_unique_properties(get_params)
-            if existing_job:
-                return InsertResult(existing_job, unique_skipped_as_duplicated=True)
-
-            return InsertResult(exec.job_insert(insert_params))
+    def _insert_many_exec(
+        self, exec: ExecutorProtocol, args: List[JobArgs | InsertManyParams]
+    ) -> list[InsertResult]:
+        res = exec.job_insert_many(_make_driver_insert_params_many(args))
+        return _to_insert_results(res)
 
 
-def _build_unique_get_params_and_unique_key(
+def _build_unique_key_and_bitmask(
     insert_params: JobInsertParams,
-    unique_opts: Optional[UniqueOpts],
-) -> tuple[Optional[JobGetByKindAndUniquePropertiesParam], str]:
+    unique_opts: UniqueOpts,
+) -> tuple[Optional[bytes], Optional[bytes]]:
     """
-    Builds driver get params and an advisory lock key from insert params and
-    unique options for use during a unique job insertion.
+    Builds driver get params and a unique key from insert params and unique
+    options for use during a job insertion.
     """
-
-    if unique_opts is None:
-        return (None, "")
-
     any_unique_opts = False
-    get_params = JobGetByKindAndUniquePropertiesParam(kind=insert_params.kind)
 
     unique_key = ""
 
+    if not unique_opts.exclude_kind:
+        unique_key += f"&kind={insert_params.kind}"
+
     if unique_opts.by_args:
         any_unique_opts = True
-        get_params.by_args = True
-        get_params.args = insert_params.args
-        unique_key += f"&args={insert_params.args}"
+
+        # Re-parse the args JSON for sorting and potentially filtering:
+        args_dict = json.loads(insert_params.args)
+
+        args_to_include = args_dict
+        if unique_opts.by_args is not True:
+            # Filter to include only the specified keys:
+            args_to_include = {
+                key: args_dict[key] for key in unique_opts.by_args if key in args_dict
+            }
+
+        # Serialize with sorted keys and append to unique key. Remove whitespace
+        # from the JSON to match other implementations:
+        sorted_args = json.dumps(args_to_include, sort_keys=True, separators=(",", ":"))
+        unique_key += f"&args={sorted_args}"
 
     if unique_opts.by_period:
         lower_period_bound = _truncate_time(
@@ -645,69 +582,32 @@ def _build_unique_get_params_and_unique_key(
         )
 
         any_unique_opts = True
-        get_params.by_created_at = True
-        get_params.created_at = [
-            lower_period_bound,
-            lower_period_bound + timedelta(seconds=unique_opts.by_period),
-        ]
         unique_key += f"&period={lower_period_bound.strftime('%FT%TZ')}"
 
     if unique_opts.by_queue:
         any_unique_opts = True
-        get_params.by_queue = True
-        get_params.queue = insert_params.queue
         unique_key += f"&queue={insert_params.queue}"
 
     if unique_opts.by_state:
         any_unique_opts = True
-        get_params.by_state = True
-        get_params.state = cast(list[str], unique_opts.by_state)
         unique_key += f"&state={','.join(unique_opts.by_state)}"
     else:
-        get_params.state = UNIQUE_STATES_DEFAULT
         unique_key += f"&state={','.join(UNIQUE_STATES_DEFAULT)}"
 
     if not any_unique_opts:
-        return (None, "")
+        return (None, None)
 
-    return (get_params, unique_key)
+    unique_key_hash = sha256(unique_key.encode("utf-8")).digest()
+    unique_states = _validate_unique_states(
+        unique_opts.by_state or UNIQUE_STATES_DEFAULT
+    )
 
-
-def _check_advisory_lock_prefix_bounds(
-    advisory_lock_prefix: Optional[int],
-) -> Optional[int]:
-    """
-    Checks that an advisory lock prefix fits in 4 bytes, which is the maximum
-    space reserved for one.
-    """
-
-    if advisory_lock_prefix:
-        # We only reserve 4 bytes for the prefix, so make sure the given one
-        # properly fits. This will error in case that's not the case.
-        advisory_lock_prefix.to_bytes(4)
-    return advisory_lock_prefix
-
-
-def _hash_lock_key(advisory_lock_prefix: Optional[int], lock_key: str) -> int:
-    """
-    Generates an FNV-1 hash from the given lock key string suitable for use with
-    a PG advisory lock while checking for the existence of a unique job.
-    """
-
-    if advisory_lock_prefix is None:
-        lock_key_hash = fnv1_hash(lock_key.encode("utf-8"), 64)
-    else:
-        prefix = advisory_lock_prefix
-        lock_key_hash = (prefix << 32) | fnv1_hash(lock_key.encode("utf-8"), 32)
-
-    return _uint64_to_int64(lock_key_hash)
+    return unique_key_hash, unique_bitmask_from_states(unique_states)
 
 
 def _make_driver_insert_params(
-    args: JobArgs,
-    insert_opts: InsertOpts,
-    is_insert_many: bool = False,
-) -> Tuple[JobInsertParams, Optional[UniqueOpts]]:
+    args: JobArgs, insert_opts: InsertOpts
+) -> JobInsertParams:
     """
     Converts user-land job args and insert options to insert params for an
     underlying driver.
@@ -725,9 +625,6 @@ def _make_driver_insert_params(
     scheduled_at = insert_opts.scheduled_at or args_insert_opts.scheduled_at
     unique_opts = insert_opts.unique_opts or args_insert_opts.unique_opts
 
-    if is_insert_many and unique_opts:
-        raise ValueError("unique opts can't be used with `insert_many`")
-
     insert_params = JobInsertParams(
         args=args_json,
         kind=args.kind,
@@ -741,18 +638,24 @@ def _make_driver_insert_params(
         tags=_validate_tags(insert_opts.tags or args_insert_opts.tags or []),
     )
 
-    return insert_params, unique_opts
+    unique_opts = insert_opts.unique_opts or args_insert_opts.unique_opts
+    if unique_opts:
+        unique_key, unique_states = _build_unique_key_and_bitmask(
+            insert_params, unique_opts
+        )
+        insert_params.unique_key = unique_key
+        insert_params.unique_states = unique_states
+
+    return insert_params
 
 
 def _make_driver_insert_params_many(
     args: List[JobArgs | InsertManyParams],
 ) -> List[JobInsertParams]:
     return [
-        _make_driver_insert_params(
-            arg.args, arg.insert_opts or InsertOpts(), is_insert_many=True
-        )[0]
+        _make_driver_insert_params(arg.args, arg.insert_opts or InsertOpts())
         if isinstance(arg, InsertManyParams)
-        else _make_driver_insert_params(arg, InsertOpts(), is_insert_many=True)[0]
+        else _make_driver_insert_params(arg, InsertOpts())
         for arg in args
     ]
 
@@ -763,9 +666,36 @@ def _truncate_time(time, interval_seconds) -> datetime:
     )
 
 
-def _uint64_to_int64(uint64):
-    # Packs a uint64 then unpacks to int64 to fit within Postgres bigint
-    return (uint64 + (1 << 63)) % (1 << 64) - (1 << 63)
+def _to_insert_results(results: list[tuple[Job, bool]]) -> list[InsertResult]:
+    return [
+        InsertResult(job, unique_skipped_as_duplicated)
+        for job, unique_skipped_as_duplicated in results
+    ]
+
+
+def unique_bitmask_from_states(states: list[JobState]) -> bytes:
+    val = 0
+
+    for state in states:
+        bit_index = JOB_STATE_BIT_POSITIONS[state]
+
+        bit_position = 7 - (bit_index % 8)
+        val |= 1 << bit_position
+
+    return val.to_bytes(1, "big")  # Returns bytes like b'\xf5'
+
+
+def unique_bitmask_to_states(mask: str) -> list[JobState]:
+    states = []
+
+    # This logic differs a bit from the above because we're working with a string
+    # of Postgres' bit(8) representation where the bit numbering is reversed
+    # (MSB on the right).
+    for state, bit_index in JOB_STATE_BIT_POSITIONS.items():
+        if mask[bit_index] == "1":
+            states.append(state)
+
+    return sorted(states)
 
 
 tag_re = re.compile(r"\A[\w][\w\-]+[\w]\Z")
@@ -777,3 +707,13 @@ def _validate_tags(tags: list[str]) -> list[str]:
             len(tag) <= 255 and tag_re.match(tag)
         ), f"tags should be less than 255 characters in length and match regex {tag_re.pattern}"
     return tags
+
+
+def _validate_unique_states(states: list[JobState]) -> list[JobState]:
+    for required_state in UNIQUE_STATES_REQUIRED:
+        if required_state not in states:
+            raise ValueError(
+                f"by_state should include required state '{required_state}'"
+            )
+
+    return states

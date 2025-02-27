@@ -48,8 +48,8 @@ class JobArgs(Protocol):
         pass
 ```
 
-* `kind` is a unique string that identifies them the job in the database, and which a Go worker will recognize.
-* `to_json()` defines how the job will serialize to JSON, which of course will have to be parseable as an object in Go.
+- `kind` is a unique string that identifies them the job in the database, and which a Go worker will recognize.
+- `to_json()` defines how the job will serialize to JSON, which of course will have to be parseable as an object in Go.
 
 They may also respond to `insert_opts()` with an instance of `InsertOpts` to define insertion options that'll be used for all jobs of the kind.
 
@@ -95,22 +95,14 @@ insert_res.job
 insert_res.unique_skipped_as_duplicated
 ```
 
-### Custom advisory lock prefix
-
-Unique job insertion takes a Postgres advisory lock to make sure that its uniqueness check still works even if two conflicting insert operations are occurring in parallel. Postgres advisory locks share a global 64-bit namespace, which is a large enough space that it's unlikely for two advisory locks to ever conflict, but to _guarantee_ that River's advisory locks never interfere with an application's, River can be configured with a 32-bit advisory lock prefix which it will use for all its locks:
-
-```python
-client = riverqueue.Client(riversqlalchemy.Driver(engine), advisory_lock_prefix=123456)
-```
-
-Doing so has the downside of leaving only 32 bits for River's locks (64 bits total - 32-bit prefix), making them somewhat more likely to conflict with each other.
+Unique jobs can also be inserted in bulk.
 
 ## Inserting jobs in bulk
 
 Use `#insert_many` to bulk insert jobs as a single operation for improved efficiency:
 
 ```python
-num_inserted = client.insert_many([
+results = client.insert_many([
     SimpleArgs(job_num=1),
     SimpleArgs(job_num=2)
 ])
@@ -119,7 +111,7 @@ num_inserted = client.insert_many([
 Or with `InsertManyParams`, which may include insertion options:
 
 ```python
-num_inserted = client.insert_many([
+results = client.insert_many([
     InsertManyParams(args=SimpleArgs(job_num=1), insert_opts=riverqueue.InsertOpts(max_attempts=5)),
     InsertManyParams(args=SimpleArgs(job_num=2), insert_opts=riverqueue.InsertOpts(queue="high_priority"))
 ])

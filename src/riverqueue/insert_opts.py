@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, List, Literal, Optional, Union
 
 from riverqueue.job import JobState
 
@@ -82,20 +82,25 @@ class UniqueOpts:
     args and queues. If either args or queue is changed on a new job, it's
     allowed to be inserted as a new job.
 
-    Uniquenes is checked at insert time by taking a Postgres advisory lock,
-    doing a look up for an equivalent row, and inserting only if none was found.
-    There's no database-level mechanism that guarantees jobs stay unique, so if
-    an equivalent row is inserted out of band (or batch inserted, where a unique
-    check doesn't occur), it's conceivable that duplicates could coexist.
+    Uniqueness relies on a hash of the job kind and any unique properties along
+    with a database unique constraint.
     """
 
-    by_args: Optional[Literal[True]] = None
+    by_args: Optional[Union[Literal[True], List[str]]] = None
     """
     Indicates that uniqueness should be enforced for any specific instance of
     encoded args for a job.
 
     Default is false, meaning that as long as any other unique property is
     enabled, uniqueness will be enforced for a kind regardless of input args.
+
+    When set to true, the entire encoded args will be included in the uniqueness
+    hash, which requires care to ensure that no irrelevant args are factored
+    into the uniqueness check. It is also possible to use a subset of the args
+    by passing a list of string keys to include in the uniqueness check.
+
+    All keys are sorted alphabetically before hashing to ensure consistent
+    results.
     """
 
     by_period: Optional[int] = None
@@ -139,4 +144,13 @@ class UniqueOpts:
     With this setting, any jobs of the same kind that have been completed or
     discarded, but not yet cleaned out by the system, won't count towards the
     uniqueness of a new insert.
+    """
+
+    exclude_kind: Optional[Literal[True]] = None
+    """
+    Indicates that the job kind should be excluded from the unique key
+    computation.
+
+    Default is false, meaning that the job kind is included in the unique key
+    computation.
     """

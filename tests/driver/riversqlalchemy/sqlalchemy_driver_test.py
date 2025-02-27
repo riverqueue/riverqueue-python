@@ -157,6 +157,8 @@ class TestAsyncClient:
         insert_opts = InsertOpts(queue="high_priority", unique_opts=None)
         insert_res = await client.insert(simple_args, insert_opts=insert_opts)
         assert insert_res.job
+        assert insert_res.job.unique_key is None
+        assert insert_res.job.unique_states is None
 
     @pytest.mark.asyncio
     async def test_insert_with_unique_opts_by_args(self, client, simple_args):
@@ -204,7 +206,14 @@ class TestAsyncClient:
     @pytest.mark.asyncio
     async def test_insert_with_unique_opts_by_state(self, client, simple_args):
         insert_opts = InsertOpts(
-            unique_opts=UniqueOpts(by_state=[JobState.AVAILABLE, JobState.RUNNING])
+            unique_opts=UniqueOpts(
+                by_state=[
+                    JobState.AVAILABLE,
+                    JobState.PENDING,
+                    JobState.RUNNING,
+                    JobState.SCHEDULED,
+                ]
+            )
         )
 
         insert_res = await client.insert(simple_args, insert_opts=insert_opts)
@@ -238,7 +247,7 @@ class TestAsyncClient:
 
     @patch("datetime.datetime")
     @pytest.mark.asyncio
-    async def test_insert_with_unique_opts_all_slow_path(
+    async def test_insert_with_unique_opts_all(
         self, mock_datetime, client, simple_args
     ):
         mock_datetime.now.return_value = datetime(
@@ -252,8 +261,11 @@ class TestAsyncClient:
                 by_queue=True,
                 by_state=[
                     JobState.AVAILABLE,
+                    JobState.COMPLETED,
+                    JobState.PENDING,
                     JobState.RUNNING,
-                ],  # non-default states activate slow path
+                    JobState.SCHEDULED,
+                ],
             )
         )
 
@@ -267,12 +279,14 @@ class TestAsyncClient:
 
     @pytest.mark.asyncio
     async def test_insert_many_with_only_args(self, client, simple_args):
-        num_inserted = await client.insert_many([simple_args])
-        assert num_inserted == 1
+        results = await client.insert_many([simple_args])
+        assert len(results) == 1
+        assert results[0].unique_skipped_as_duplicated is False
+        assert results[0].job.id > 0
 
     @pytest.mark.asyncio
     async def test_insert_many_with_insert_opts(self, client, simple_args):
-        num_inserted = await client.insert_many(
+        results = await client.insert_many(
             [
                 InsertManyParams(
                     args=simple_args,
@@ -280,12 +294,16 @@ class TestAsyncClient:
                 )
             ]
         )
-        assert num_inserted == 1
+        assert len(results) == 1
+        assert results[0].unique_skipped_as_duplicated is False
+        assert results[0].job.id > 0
 
     @pytest.mark.asyncio
     async def test_insert_many_tx(self, client, simple_args, test_tx):
-        num_inserted = await client.insert_many_tx(test_tx, [simple_args])
-        assert num_inserted == 1
+        results = await client.insert_many_tx(test_tx, [simple_args])
+        assert len(results) == 1
+        assert results[0].unique_skipped_as_duplicated is False
+        assert results[0].job.id > 0
 
 
 class TestSyncClient:
@@ -336,6 +354,8 @@ class TestSyncClient:
         insert_opts = InsertOpts(queue="high_priority", unique_opts=None)
         insert_res = client.insert(simple_args, insert_opts=insert_opts)
         assert insert_res.job
+        assert insert_res.job.unique_key is None
+        assert insert_res.job.unique_states is None
 
     def test_insert_with_unique_opts_by_args(self, client, simple_args):
         print("self", self)
@@ -381,11 +401,28 @@ class TestSyncClient:
 
     def test_insert_with_unique_opts_by_state(self, client, simple_args):
         insert_opts = InsertOpts(
-            unique_opts=UniqueOpts(by_state=[JobState.AVAILABLE, JobState.RUNNING])
+            unique_opts=UniqueOpts(
+                by_state=[
+                    JobState.AVAILABLE,
+                    JobState.COMPLETED,
+                    JobState.PENDING,
+                    JobState.RETRYABLE,
+                    JobState.RUNNING,
+                    JobState.SCHEDULED,
+                ]
+            )
         )
 
         insert_res = client.insert(simple_args, insert_opts=insert_opts)
         assert insert_res.job
+        assert insert_res.job.unique_states == [
+            JobState.AVAILABLE,
+            JobState.COMPLETED,
+            JobState.PENDING,
+            JobState.RETRYABLE,
+            JobState.RUNNING,
+            JobState.SCHEDULED,
+        ]
         assert not insert_res.unique_skipped_as_duplicated
 
         insert_res2 = client.insert(simple_args, insert_opts=insert_opts)
@@ -413,9 +450,7 @@ class TestSyncClient:
         assert insert_res2.unique_skipped_as_duplicated
 
     @patch("datetime.datetime")
-    def test_insert_with_unique_opts_all_slow_path(
-        self, mock_datetime, client, simple_args
-    ):
+    def test_insert_with_unique_opts_all(self, mock_datetime, client, simple_args):
         mock_datetime.now.return_value = datetime(
             2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc
         )
@@ -427,7 +462,10 @@ class TestSyncClient:
                 by_queue=True,
                 by_state=[
                     JobState.AVAILABLE,
+                    JobState.COMPLETED,
+                    JobState.PENDING,
                     JobState.RUNNING,
+                    JobState.SCHEDULED,
                 ],  # non-default states activate slow path
             )
         )
@@ -441,11 +479,13 @@ class TestSyncClient:
         assert insert_res2.unique_skipped_as_duplicated
 
     def test_insert_many_with_only_args(self, client, simple_args):
-        num_inserted = client.insert_many([simple_args])
-        assert num_inserted == 1
+        results = client.insert_many([simple_args])
+        assert len(results) == 1
+        assert results[0].unique_skipped_as_duplicated is False
+        assert results[0].job.id > 0
 
     def test_insert_many_with_insert_opts(self, client, simple_args):
-        num_inserted = client.insert_many(
+        results = client.insert_many(
             [
                 InsertManyParams(
                     args=simple_args,
@@ -453,8 +493,12 @@ class TestSyncClient:
                 )
             ]
         )
-        assert num_inserted == 1
+        assert len(results) == 1
+        assert results[0].unique_skipped_as_duplicated is False
+        assert results[0].job.id > 0
 
     def test_insert_many_tx(self, client, simple_args, test_tx):
-        num_inserted = client.insert_many_tx(test_tx, [simple_args])
-        assert num_inserted == 1
+        results = client.insert_many_tx(test_tx, [simple_args])
+        assert len(results) == 1
+        assert results[0].unique_skipped_as_duplicated is False
+        assert results[0].job.id > 0
