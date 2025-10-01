@@ -507,6 +507,6 @@ def test_unique_bitmask_from_states(description, input_states, postgres_bitstrin
         input_states = []
 
     result = unique_bitmask_from_states(input_states)
-    assert (
-        result == postgres_bitstring
-    ), f"{description} For states {input_states}, expected {postgres_bitstring}, got {result}"
+    assert result == postgres_bitstring, (
+        f"{description} For states {input_states}, expected {postgres_bitstring}, got {result}"
+    )

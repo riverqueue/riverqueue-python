@@ -305,6 +305,39 @@ class TestAsyncClient:
         assert results[0].unique_skipped_as_duplicated is False
         assert results[0].job.id > 0
 
+    @pytest.mark.asyncio
+    async def test_insert_many_preserves_distinct_args(self, client):
+        # Insert mixed types and ensure each row retains its own args and kind
+        from dataclasses import dataclass
+
+        @dataclass
+        class TypeA:
+            n: int
+            kind: str = "simple_a"
+
+            def to_json(self) -> str:
+                return json.dumps({"a": self.n})
+
+        @dataclass
+        class TypeB:
+            s: str
+            kind: str = "simple_b"
+
+            def to_json(self) -> str:
+                return json.dumps({"b": self.s})
+
+        batch = [TypeA(1), TypeB("x"), TypeA(2), TypeB("y")]
+        results = await client.insert_many(batch)
+
+        assert len(results) == 4
+        for res, arg in zip(results, batch):
+            if isinstance(arg, TypeA):
+                assert res.job.kind == "simple_a"
+                assert res.job.args == {"a": arg.n}
+            else:
+                assert res.job.kind == "simple_b"
+                assert res.job.args == {"b": arg.s}
+
 
 class TestSyncClient:
     #
@@ -502,3 +535,35 @@ class TestSyncClient:
         assert len(results) == 1
         assert results[0].unique_skipped_as_duplicated is False
         assert results[0].job.id > 0
+
+    def test_insert_many_preserves_distinct_args(self, client):
+        # Insert mixed types and ensure each row retains its own args and kind
+        from dataclasses import dataclass
+
+        @dataclass
+        class TypeA:
+            n: int
+            kind: str = "simple_a"
+
+            def to_json(self) -> str:
+                return json.dumps({"a": self.n})
+
+        @dataclass
+        class TypeB:
+            s: str
+            kind: str = "simple_b"
+
+            def to_json(self) -> str:
+                return json.dumps({"b": self.s})
+
+        batch = [TypeA(1), TypeB("x"), TypeA(2), TypeB("y")]
+        results = client.insert_many(batch)
+
+        assert len(results) == 4
+        for res, arg in zip(results, batch):
+            if isinstance(arg, TypeA):
+                assert res.job.kind == "simple_a"
+                assert res.job.args == {"a": arg.n}
+            else:
+                assert res.job.kind == "simple_b"
+                assert res.job.args == {"b": arg.s}
