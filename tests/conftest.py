@@ -98,6 +98,6 @@ def check_leftover_jobs(engine) -> Iterator[None]:
 
     with engine.begin() as conn_tx:
         jobs = river_job.Querier(conn_tx).job_get_all()
-        assert (
-            list(jobs) == []
-        ), "test case should not have persisted any jobs after run"
+        assert list(jobs) == [], (
+            "test case should not have persisted any jobs after run"
+        )

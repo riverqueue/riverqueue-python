@@ -703,9 +703,9 @@ tag_re = re.compile(r"\A[\w][\w\-]+[\w]\Z")
 
 def _validate_tags(tags: list[str]) -> list[str]:
     for tag in tags:
-        assert (
-            len(tag) <= 255 and tag_re.match(tag)
-        ), f"tags should be less than 255 characters in length and match regex {tag_re.pattern}"
+        assert len(tag) <= 255 and tag_re.match(tag), (
+            f"tags should be less than 255 characters in length and match regex {tag_re.pattern}"
+        )
     return tags
 
 

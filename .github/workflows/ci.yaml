@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rye
-        uses: eifinger/setup-rye@v3
+        uses: eifinger/setup-rye@v4
 
       # Needed for River's CLI. There is a version of Go on Actions' base image,
       # but it's old and can't read modern `go.mod` annotations correctly.
@@ -89,7 +89,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rye
-        uses: eifinger/setup-rye@v3
+        uses: eifinger/setup-rye@v4
 
       # Needed for River's CLI. There is a version of Go on Actions' base image,
       # but it's old and can't read modern `go.mod` annotations correctly.
@@ -122,7 +122,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rye
-        uses: eifinger/setup-rye@v3
+        uses: eifinger/setup-rye@v4
 
       - name: Rye sync
         run: rye sync
